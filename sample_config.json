@@ -1,0 +1,22 @@
+{
+  "start": "2026-07-01",
+  "end":   "2026-09-30",
+  "sdnco": [
+    {"name": "G1",   "eligible": 10},
+    {"name": "G2",   "eligible": 5},
+    {"name": "G3",   "eligible": 5},
+    {"name": "G4",   "eligible": 6},
+    {"name": "G6",   "eligible": 8},
+    {"name": "G8",   "eligible": 4},
+    {"name": "ACOS", "eligible": 3}
+  ],
+  "sd_runner": [
+    {"name": "G1",   "eligible": 8},
+    {"name": "G2",   "eligible": 4},
+    {"name": "G3",   "eligible": 4},
+    {"name": "G4",   "eligible": 5},
+    {"name": "G6",   "eligible": 6},
+    {"name": "G8",   "eligible": 3},
+    {"name": "ACOS", "eligible": 2}
+  ]
+}
