@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
-from typing import Dict, Set
 
 import holidays as hol
 
@@ -33,9 +32,9 @@ HOLIDAY  = "holiday"   # includes both federal and USAREUR-AF training holidays
 def build_holiday_set(
     start: date,
     end: date,
-    extra_holidays: Set[date] | None = None,
+    extra_holidays: set[date] | None = None,
     try_pdf: bool = False,
-) -> Set[date]:
+) -> set[date]:
     """
     Return the set of all holiday dates in [start, end].
 
@@ -43,7 +42,7 @@ def build_holiday_set(
     Caller should supply command-directed training holidays / DONSAs via
     extra_holidays — the automated PDF scrape has been removed.
     """
-    holiday_dates: Set[date] = set()
+    holiday_dates: set[date] = set()
 
     if not extra_holidays:
         logger.warning(
@@ -73,7 +72,7 @@ def build_holiday_set(
     return {d for d in holiday_dates if start <= d <= end}
 
 
-def classify_day(d: date, holiday_dates: Set[date]) -> str:
+def classify_day(d: date, holiday_dates: set[date]) -> str:
     """Return HOLIDAY, WEEKEND, or WEEKDAY for a given date."""
     if d in holiday_dates:
         return HOLIDAY
@@ -92,13 +91,13 @@ def get_quarter_days(start: date, end: date) -> list[date]:
     return out
 
 
-def day_type_summary(days: list[date], holiday_dates: Set[date]) -> Dict[str, int]:
+def day_type_summary(days: list[date], holiday_dates: set[date]) -> dict[str, int]:
     """
     Count weekday / weekend / holiday days in a list.
     Note: days in holiday_dates that fall on a weekend are counted as HOLIDAY,
     not WEEKEND (holidays are 'harder' than weekends from a duty perspective).
     """
-    counts: Dict[str, int] = {WEEKDAY: 0, WEEKEND: 0, HOLIDAY: 0}
+    counts: dict[str, int] = {WEEKDAY: 0, WEEKEND: 0, HOLIDAY: 0}
     for d in days:
         counts[classify_day(d, holiday_dates)] += 1
     return counts
@@ -107,10 +106,10 @@ def day_type_summary(days: list[date], holiday_dates: Set[date]) -> Dict[str, in
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _compute_bridge_days(
-    existing_holidays: Set[date],
+    existing_holidays: set[date],
     start: date,
     end: date,
-) -> Set[date]:
+) -> set[date]:
     """
     USAREUR-AF 4-day weekend heuristic:
     - Federal holiday on Tuesday  → add the preceding Monday as bridge
@@ -119,7 +118,7 @@ def _compute_bridge_days(
       → extend to 4-day by also adding the preceding Thursday
     Only adds bridge days that fall within [start, end] and are not already holidays.
     """
-    bridges: Set[date] = set()
+    bridges: set[date] = set()
     for d in existing_holidays:
         wd = d.weekday()  # Monday=0 … Sunday=6
         if wd == 1:  # Tuesday → bridge Monday

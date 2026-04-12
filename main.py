@@ -37,14 +37,13 @@ import logging
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import List, Optional
 
 import click
 
 from .calendar_utils import build_holiday_set, get_quarter_days
 from .config import Directorate, RosterConfig
 from .export import write_excel, write_html
-from .solver import solve, solve_joint
+from .solver import solve_joint
 
 logging.basicConfig(
     level=logging.INFO,
@@ -85,9 +84,9 @@ logger = logging.getLogger(__name__)
     help="Additional command-directed holiday. Repeat to add multiple.",
 )
 def main(
-    config: Optional[Path],
-    start: Optional[str],
-    end: Optional[str],
+    config: Path | None,
+    start: str | None,
+    end: str | None,
     dir_args: tuple,
     output: Path,
     extra_holidays: tuple,
@@ -169,7 +168,7 @@ def _parse_date(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
-def _parse_dir_args(dir_args: tuple) -> List[Directorate]:
+def _parse_dir_args(dir_args: tuple) -> list[Directorate]:
     dirs = []
     for arg in dir_args:
         if ":" not in arg:
@@ -190,7 +189,7 @@ def _load_json_config(path: Path):
     start = _parse_date(raw["start"])
     end   = _parse_date(raw["end"])
 
-    def parse_dirs(entries: list) -> List[Directorate]:
+    def parse_dirs(entries: list) -> list[Directorate]:
         return [Directorate(name=e["name"], eligible=int(e["eligible"])) for e in entries]
 
     if "sdnco" in raw and "sd_runner" in raw:

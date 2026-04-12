@@ -43,13 +43,12 @@ from __future__ import annotations
 import logging
 import math
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from typing import Dict, List, Set, Tuple
 
 import pulp
 
-from .calendar_utils import HOLIDAY, WEEKEND, WEEKDAY, classify_day
+from .calendar_utils import HOLIDAY, WEEKDAY, WEEKEND, classify_day
 from .config import RosterConfig
 
 logger = logging.getLogger(__name__)
@@ -82,8 +81,8 @@ class DirectorateStats:
 class RosterSolution:
     """Full solution for one role (SDNCO or SD_Runner)."""
     role: str
-    assignment: Dict[date, str]          # date → directorate name
-    stats: List[DirectorateStats]
+    assignment: dict[date, str]          # date → directorate name
+    stats: list[DirectorateStats]
     solver_status: str                   # "Optimal", "Feasible", "Fallback"
 
     # Fairness metrics (lower = more fair)
@@ -102,9 +101,9 @@ SPACING_PENALTY = 0.6    # balance within-month halves to prevent clustering
 def solve_joint(
     sdnco_cfg: RosterConfig,
     runner_cfg: RosterConfig,
-    all_days: List[date],
-    holiday_dates: Set[date],
-) -> Tuple[RosterSolution, RosterSolution]:
+    all_days: list[date],
+    holiday_dates: set[date],
+) -> tuple[RosterSolution, RosterSolution]:
     """
     Solve SDNCO and SD_Runner jointly so the same-day overlap constraint
     can be enforced across roles.  Returns (sdnco_solution, runner_solution).
@@ -118,7 +117,7 @@ def solve_joint(
     n_hard       = len(hard_days)
 
     # Group day indices by month
-    month_indices: Dict[Tuple[int, int], List[int]] = defaultdict(list)
+    month_indices: dict[tuple[int, int], list[int]] = defaultdict(list)
     for ti, day in enumerate(T):
         month_indices[(day.year, day.month)].append(ti)
 
@@ -143,8 +142,8 @@ def solve_joint(
         role_vars[tag] = x
 
         # Quotas
-        total_quota: Dict[str, Tuple[int, int]] = {}
-        hard_target: Dict[str, float] = {}
+        total_quota: dict[str, tuple[int, int]] = {}
+        hard_target: dict[str, float] = {}
         for d in dirs:
             q = d.eligible / H * n_days
             total_quota[d.name] = (math.floor(q), math.ceil(q))
@@ -257,7 +256,7 @@ def solve_joint(
     results = []
     for tag, cfg in [("S", sdnco_cfg), ("R", runner_cfg)]:
         xv = role_vars[tag]
-        assignment: Dict[date, str] = {}
+        assignment: dict[date, str] = {}
         for ti, day in enumerate(T):
             for dn in dir_names:
                 if pulp.value(xv[(dn, ti)]) > 0.5:
@@ -272,8 +271,8 @@ def solve_joint(
 
 def solve(
     config: RosterConfig,
-    all_days: List[date],
-    holiday_dates: Set[date],
+    all_days: list[date],
+    holiday_dates: set[date],
 ) -> RosterSolution:
     """Solve a single role independently (no overlap constraint)."""
     return _solve_single(config, all_days, holiday_dates)
@@ -281,8 +280,8 @@ def solve(
 
 def _solve_single(
     config: RosterConfig,
-    all_days: List[date],
-    holiday_dates: Set[date],
+    all_days: list[date],
+    holiday_dates: set[date],
 ) -> RosterSolution:
     dirs   = config.directorates
     H      = config.total_eligible
@@ -293,12 +292,12 @@ def _solve_single(
     hard_indices = {T.index(hd) for hd in hard_days}
     n_hard       = len(hard_days)
 
-    month_indices: Dict[Tuple[int, int], List[int]] = defaultdict(list)
+    month_indices: dict[tuple[int, int], list[int]] = defaultdict(list)
     for ti, day in enumerate(T):
         month_indices[(day.year, day.month)].append(ti)
 
-    total_quota: Dict[str, Tuple[int, int]] = {}
-    hard_target: Dict[str, float] = {}
+    total_quota: dict[str, tuple[int, int]] = {}
+    hard_target: dict[str, float] = {}
     for d in dirs:
         q = d.eligible / H * n_days
         total_quota[d.name] = (math.floor(q), math.ceil(q))
@@ -352,7 +351,7 @@ def _solve_single(
     if status_code != 1:
         return _greedy_fallback(config, T, holiday_dates, hard_target, total_quota)
 
-    assignment: Dict[date, str] = {}
+    assignment: dict[date, str] = {}
     for ti, day in enumerate(T):
         for dn in dir_names:
             if pulp.value(x[(dn, ti)]) > 0.5:
@@ -366,9 +365,9 @@ def _solve_single(
 def _greedy_joint_fallback(
     sdnco_cfg: RosterConfig,
     runner_cfg: RosterConfig,
-    all_days: List[date],
-    holiday_dates: Set[date],
-) -> Tuple[RosterSolution, RosterSolution]:
+    all_days: list[date],
+    holiday_dates: set[date],
+) -> tuple[RosterSolution, RosterSolution]:
     """Greedy fallback that respects cool-down and avoids same-day overlap."""
     H_s = sdnco_cfg.total_eligible
     H_r = runner_cfg.total_eligible
@@ -395,11 +394,11 @@ def _greedy_joint_fallback(
 
 def _greedy_fallback(
     config: RosterConfig,
-    all_days: List[date],
-    holiday_dates: Set[date],
-    hard_target: Dict[str, float],
-    total_quota: Dict[str, Tuple[int, int]],
-    avoid_assignment: Dict[date, str] | None = None,
+    all_days: list[date],
+    holiday_dates: set[date],
+    hard_target: dict[str, float],
+    total_quota: dict[str, tuple[int, int]],
+    avoid_assignment: dict[date, str] | None = None,
 ) -> RosterSolution:
     """
     Greedy assignment when ILP fails.
@@ -410,7 +409,7 @@ def _greedy_fallback(
 
     remaining_total = {d.name: total_quota[d.name][1] for d in dirs}
     assigned_hard   = {d.name: 0 for d in dirs}
-    assignment: Dict[date, str] = {}
+    assignment: dict[date, str] = {}
 
     hard_days = [d for d in all_days if classify_day(d, holiday_dates) in (WEEKEND, HOLIDAY)]
     soft_days = [d for d in all_days if d not in set(hard_days)]
@@ -465,11 +464,11 @@ def _interleave(a: list, b: list) -> list:
 
 def _build_solution(
     config: RosterConfig,
-    assignment: Dict[date, str],
-    holiday_dates: Set[date],
+    assignment: dict[date, str],
+    holiday_dates: set[date],
     status: str,
 ) -> RosterSolution:
-    stats_list: List[DirectorateStats] = []
+    stats_list: list[DirectorateStats] = []
 
     for d in config.directorates:
         days_for_d = [day for day, dn in assignment.items() if dn == d.name]

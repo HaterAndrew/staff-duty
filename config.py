@@ -12,7 +12,6 @@ one for SDNCO positions and one for SD Runner positions.
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import List
 
 
 @dataclass
@@ -39,7 +38,7 @@ class RosterConfig:
     role: str
     start_date: date
     end_date: date
-    directorates: List[Directorate] = field(default_factory=list)
+    directorates: list[Directorate] = field(default_factory=list)
 
     def __post_init__(self):
         if self.end_date <= self.start_date:

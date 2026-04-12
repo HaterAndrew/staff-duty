@@ -12,7 +12,6 @@ Dependencies (add to requirements.txt):
 from __future__ import annotations
 
 import html as _html
-import io
 import os
 import tempfile
 from datetime import datetime
@@ -23,7 +22,7 @@ from flask import Flask, Response, request
 from .calendar_utils import build_holiday_set, get_quarter_days
 from .config import Directorate, RosterConfig
 from .export import _USAREUR_SVG, write_excel, write_html
-from .solver import solve, solve_joint
+from .solver import solve_joint
 
 app = Flask(__name__)
 

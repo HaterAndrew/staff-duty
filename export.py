@@ -15,20 +15,15 @@ HTML dashboard:
 
 from __future__ import annotations
 
-import math
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Set
 
 import openpyxl
-from openpyxl.styles import (
-    Alignment, Border, Font, PatternFill, Side, numbers
-)
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .calendar_utils import HOLIDAY, WEEKEND, WEEKDAY, classify_day
-from .solver import DirectorateStats, RosterSolution
-
+from .calendar_utils import HOLIDAY, WEEKDAY, WEEKEND, classify_day
+from .solver import RosterSolution
 
 # ── Colour palette (max 16 directorates) ─────────────────────────────────────
 _PALETTE = [
@@ -39,16 +34,16 @@ _PALETTE = [
 ]
 
 
-def _dir_color_map(all_dirs: List[str]) -> Dict[str, str]:
+def _dir_color_map(all_dirs: list[str]) -> dict[str, str]:
     return {dn: _PALETTE[i % len(_PALETTE)] for i, dn in enumerate(all_dirs)}
 
 
 # ── Excel export ─────────────────────────────────────────────────────────────
 
 def write_excel(
-    solutions: List[RosterSolution],
-    all_days: List[date],
-    holiday_dates: Set[date],
+    solutions: list[RosterSolution],
+    all_days: list[date],
+    holiday_dates: set[date],
     output_path: Path,
 ) -> None:
     """
@@ -68,7 +63,7 @@ def write_excel(
     wb.save(output_path)
 
 
-def _all_dir_names(solutions: List[RosterSolution]) -> List[str]:
+def _all_dir_names(solutions: list[RosterSolution]) -> list[str]:
     seen, names = set(), []
     for sol in solutions:
         for s in sol.stats:
@@ -89,10 +84,10 @@ def _header_fill(hex_color: str) -> PatternFill:
 
 def _write_roster_sheet(
     wb: openpyxl.Workbook,
-    solutions: List[RosterSolution],
-    all_days: List[date],
-    holiday_dates: Set[date],
-    color_map: Dict[str, str],
+    solutions: list[RosterSolution],
+    all_days: list[date],
+    holiday_dates: set[date],
+    color_map: dict[str, str],
 ) -> None:
     """
     Working roster sheet — designed to be printed and filled in.
@@ -234,7 +229,7 @@ def _write_roster_sheet(
 
 def _write_summary_sheet(
     wb: openpyxl.Workbook,
-    solutions: List[RosterSolution],
+    solutions: list[RosterSolution],
 ) -> None:
     ws = wb.create_sheet("Summary")
     row = 1
@@ -273,7 +268,7 @@ def _write_summary_sheet(
 
 def _write_fairness_sheet(
     wb: openpyxl.Workbook,
-    solutions: List[RosterSolution],
+    solutions: list[RosterSolution],
 ) -> None:
     ws = wb.create_sheet("Fairness")
     row = 1
@@ -357,9 +352,9 @@ _USAREUR_SVG = '''<svg width="60" height="79" viewBox="0 0 246.08 322.7" xmlns="
 # ── HTML export ───────────────────────────────────────────────────────────────
 
 def write_html(
-    solutions: List[RosterSolution],
-    all_days: List[date],
-    holiday_dates: Set[date],
+    solutions: list[RosterSolution],
+    all_days: list[date],
+    holiday_dates: set[date],
     output_path: Path,
 ) -> None:
     """Write a standalone HTML dashboard with USAREUR-AF HHBn branding."""
@@ -934,7 +929,7 @@ footer strong {{ color: var(--white); }}
 
 # ── HTML sub-builders ─────────────────────────────────────────────────────────
 
-def _build_legend_html(all_dirs: List[str], color_map: Dict[str, str]) -> str:
+def _build_legend_html(all_dirs: list[str], color_map: dict[str, str]) -> str:
     items = "".join(
         f'<div class="legend-item">'
         f'<div class="legend-swatch" style="background:#{color_map[dn]}"></div>'
@@ -955,10 +950,10 @@ def _build_legend_html(all_dirs: List[str], color_map: Dict[str, str]) -> str:
 
 
 def _build_calendar_table_html(
-    solutions: List[RosterSolution],
-    all_days: List[date],
-    holiday_dates: Set[date],
-    color_map: Dict[str, str],
+    solutions: list[RosterSolution],
+    all_days: list[date],
+    holiday_dates: set[date],
+    color_map: dict[str, str],
 ) -> str:
     """Single tabular calendar: one row per day, one column per role."""
     dow_abbr = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
@@ -1031,9 +1026,9 @@ def _build_calendar_table_html(
 
 
 def _build_summary_html(
-    solutions: List[RosterSolution],
-    all_days: List[date],
-    color_map: Dict[str, str],
+    solutions: list[RosterSolution],
+    all_days: list[date],
+    color_map: dict[str, str],
 ) -> str:
     n = len(all_days)
     cards = ""
@@ -1075,7 +1070,7 @@ def _build_summary_html(
     return f'<div class="roles-grid">{cards}</div>'
 
 
-def _build_fairness_html(solutions: List[RosterSolution]) -> str:
+def _build_fairness_html(solutions: list[RosterSolution]) -> str:
     """
     Executive-friendly fairness section.
 
@@ -1096,7 +1091,6 @@ def _build_fairness_html(solutions: List[RosterSolution]) -> str:
 
         def delta_text(actual: int, target: float) -> str:
             d = actual - target
-            sign = "+" if d >= 0 else ""
             if abs(d) <= 1:
                 return "On target"
             elif d > 0:
