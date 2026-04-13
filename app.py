@@ -26,6 +26,20 @@ from .solver import solve_joint
 
 app = Flask(__name__)
 
+# ── CORS (allow GitHub Pages frontend) ────────────────────────────────────────
+@app.after_request
+def add_cors(response):
+    origin = request.headers.get("Origin", "")
+    if origin in (
+        "https://haterandrew.github.io",
+        "http://localhost:5001",
+        "http://127.0.0.1:5001",
+    ):
+        response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
+
 # ── Colours (must match dashboard) ────────────────────────────────────────────
 _NAVY   = "#0C2340"
 _GOLD   = "#C8971A"
@@ -56,7 +70,7 @@ def _default_rows_html() -> str:
             f'          <td><input type="text"   name="dir_name"    value="{name}"   required class="inp" placeholder="G9"></td>\n'
             f'          <td><input type="number" name="sdnco_count" value="{sdnco}"  min="1" required class="inp num" oninput="mirrorRunner(this)"></td>\n'
             f'          <td class="runner-col"><input type="number" name="runner_count" value="{runner}" min="1" class="inp num runner-inp"></td>\n'
-            f'          <td><button type="button" class="rm-btn" onclick="removeRow(this)" title="Remove row">&#10005;</button></td>\n'
+            f'          <td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove row">&#10005;</a></td>\n'
             f'        </tr>'
         )
     return "\n".join(rows)
@@ -177,6 +191,8 @@ def _form_page() -> str:
       cursor: pointer;
       padding: .25rem .55rem;
       font-size: .8rem;
+      text-decoration: none;
+      display: inline-block;
       transition: all .15s;
     }}
     .rm-btn:hover {{ background: rgba(255,60,60,.15); color: #ff6060; border-color: #ff5050; }}
@@ -192,6 +208,8 @@ def _form_page() -> str:
       font-weight: 700;
       letter-spacing: .08em;
       margin-top: .75rem;
+      text-decoration: none;
+      display: inline-block;
       transition: all .15s;
     }}
     .add-btn:hover {{ background: rgba(200,151,26,.1); }}
@@ -281,7 +299,7 @@ def _form_page() -> str:
 </header>
 
 <main>
-  <form id="roster-form" action="/generate" method="POST">
+  <form id="roster-form" action="/generate" method="GET">
 
     <!-- QUARTER ---------------------------------------------------------------->
     <div class="card">
@@ -328,7 +346,7 @@ def _form_page() -> str:
 {rows}
           </tbody>
         </table>
-        <button type="button" class="add-btn" onclick="addRow()">+ ADD DIRECTORATE</button>
+        <a href="#" class="add-btn" onclick="addRow();return false">+ ADD DIRECTORATE</a>
       </div>
     </div>
 
@@ -354,7 +372,7 @@ def _form_page() -> str:
     </div>
 
     <div class="submit-wrap">
-      <button type="submit" class="submit-btn" id="submit-btn">GENERATE ROSTER</button>
+      <input type="submit" class="submit-btn" id="submit-btn" value="GENERATE ROSTER">
     </div>
 
   </form>
@@ -400,7 +418,7 @@ def _form_page() -> str:
       `<td class="runner-col" style="display:${{runnerVis}}">` +
         `<input type="number" name="runner_count" value="4" min="1" ${{same ? '' : 'required'}} class="inp num runner-inp">` +
       `</td>` +
-      `<td><button type="button" class="rm-btn" onclick="removeRow(this)" title="Remove">&#10005;</button></td>`;
+      `<td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove">&#10005;</a></td>`;
 
     tbody.appendChild(tr);
     tr.querySelector('input[name="dir_name"]').focus();
@@ -417,7 +435,7 @@ def _form_page() -> str:
     btn.closest('tr').remove();
   }}
 
-  // ── Loading state on submit ─────────────────────────────────────────────────
+  // ── Validation on submit ────────────────────────────────────────────────────
   document.getElementById('roster-form').addEventListener('submit', function (e) {{
     // Validate: no blank names
     let ok = true;
@@ -449,9 +467,10 @@ def index() -> Response:
     return Response(_form_page(), mimetype="text/html")
 
 
-@app.route("/generate", methods=["POST"])
+@app.route("/generate", methods=["GET", "POST"])
 def generate() -> Response:
-    sdnco_sol, runner_sol, all_days, holiday_dates, err = _run_solver(request.form)
+    params = request.args if request.method == "GET" else request.form
+    sdnco_sol, runner_sol, all_days, holiday_dates, err = _run_solver(params)
     if err:
         return Response(err, status=400, mimetype="text/html")
 
@@ -464,14 +483,15 @@ def generate() -> Response:
     finally:
         os.unlink(tmp)
 
-    page = _inject_nav(page, list(request.form.items(multi=True)))
+    page = _inject_nav(page, list(params.items(multi=True)))
     return Response(page, mimetype="text/html")
 
 
-@app.route("/export/excel", methods=["POST"])
+@app.route("/export/excel", methods=["GET", "POST"])
 def export_excel() -> Response:
     """Re-run the solver with the same parameters and stream an .xlsx download."""
-    sdnco_sol, runner_sol, all_days, holiday_dates, err = _run_solver(request.form)
+    params = request.args if request.method == "GET" else request.form
+    sdnco_sol, runner_sol, all_days, holiday_dates, err = _run_solver(params)
     if err:
         return Response(err, status=400, mimetype="text/html")
 
@@ -569,12 +589,6 @@ def _inject_nav(page: str, form_items: list[tuple[str, str]]) -> str:
       ← Configure New Roster    [Download Excel ↓]
     The Download button re-posts the same form data to /export/excel.
     """
-    # Build hidden inputs from original form params (HTML-escaped)
-    hidden_inputs = "\n".join(
-        f'<input type="hidden" name="{_html.escape(k)}" value="{_html.escape(v)}">'
-        for k, v in form_items
-    )
-
     nav_css = f"""<style>
   #app-nav {{
     position: sticky; top: 0; z-index: 9000;
@@ -589,26 +603,28 @@ def _inject_nav(page: str, form_items: list[tuple[str, str]]) -> str:
     white-space: nowrap;
   }}
   #app-nav a.nav-back:hover {{ text-decoration: underline; }}
-  #excel-form button {{
+  #app-nav .excel-link {{
     background: {_GOLD}; border: none; border-radius: 4px;
-    color: {_NAVY}; cursor: pointer;
+    color: {_NAVY}; text-decoration: none;
     font-size: 0.8rem; font-weight: 800; letter-spacing: 0.1em;
     padding: 0.4rem 1.1rem;
     transition: opacity .15s;
     white-space: nowrap;
+    display: inline-block;
   }}
-  #excel-form button:hover {{ opacity: 0.85; }}
+  #app-nav .excel-link:hover {{ opacity: 0.85; }}
   #app-nav .nav-r {{ color: rgba(255,255,255,0.35); font-size: 0.7rem; letter-spacing: 0.1em; flex: 1; text-align: center; }}
 </style>"""
+
+    # Build query string for GET-based Excel download link
+    from urllib.parse import urlencode
+    excel_qs = urlencode(form_items)
 
     nav_bar = (
         '<div id="app-nav">'
         '<a class="nav-back" href="/">&#8592;&nbsp; Configure New Roster</a>'
         '<span class="nav-r">USAREUR-AF &bull; HHBn STAFF DUTY &bull; UNCLASSIFIED</span>'
-        f'<form id="excel-form" action="/export/excel" method="POST">'
-        f'{hidden_inputs}'
-        '<button type="submit">&#11015;&nbsp; Download Excel</button>'
-        '</form>'
+        f'<a class="excel-link" href="/export/excel?{_html.escape(excel_qs)}">&#11015;&nbsp; Download Excel</a>'
         '</div>'
     )
 

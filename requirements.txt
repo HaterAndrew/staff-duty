@@ -1,0 +1,6 @@
+flask>=3.0
+gunicorn>=22.0
+holidays>=0.60
+openpyxl>=3.1
+click>=8.1
+pulp>=2.8
