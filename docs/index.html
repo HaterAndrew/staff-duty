@@ -284,19 +284,20 @@ input:focus { outline: none; border-color: var(--gold); }
   text-transform: uppercase;
 }
 .btn-excel:hover { filter: brightness(1.1); }
-.btn-about {
+.nav-tabs { display: flex; gap: 0; }
+.nav-tab {
   background: transparent;
-  color: var(--gold);
+  color: #8ea4bf;
   font-weight: 600;
-  padding: 6px 16px;
-  border-radius: 4px;
-  border: 1px solid var(--gold);
+  padding: 8px 18px;
+  border: none;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-size: 0.82rem;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
 }
-.btn-about:hover { background: rgba(200,151,26,.15); }
+.nav-tab:hover { color: #fff; }
+.nav-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 
 .dash-container { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
 
@@ -1161,6 +1162,17 @@ function gini(values) {
 }
 
 /* ============================================================
+   TAB SWITCHING
+   ============================================================ */
+function switchTab(tabName, btn) {
+  document.getElementById('tab-roster').style.display = tabName === 'roster' ? 'block' : 'none';
+  document.getElementById('tab-about').style.display = tabName === 'about' ? 'block' : 'none';
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ============================================================
    EXCEL EXPORT — HTML table .xls matching Fly.io Roster sheet
    Copy-paste friendly: matches the real workbook format
    ============================================================ */
@@ -1386,17 +1398,22 @@ function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, start
     </div>
   </div>`;
 
-  // Sticky nav with Excel download button
+  // Sticky nav with tabs
   html += `<div class="sticky-nav">
     <a href="#" onclick="location.reload(); return false;">&larr; Configure New Roster</a>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('roster',this)">Roster</button>
+      <button class="nav-tab" onclick="switchTab('about',this)">About the Model</button>
+    </div>
     <div class="nav-right">
-      <span>USAREUR-AF &middot; HHBn STAFF DUTY &middot; UNCLASSIFIED</span>
       <button class="btn-excel" onclick="exportExcel()">Download Excel</button>
-      <button class="btn-about" onclick="document.getElementById('aboutSection').scrollIntoView({behavior:'smooth'})">About the Model</button>
     </div>
   </div>`;
 
   html += `<div class="dash-container">`;
+
+  // ===== ROSTER TAB =====
+  html += `<div id="tab-roster">`;
 
   // Section header: OVERVIEW
   html += `<div class="section-hdr"><span class="section-badge">OVERVIEW</span><span class="section-title">Quarter Summary</span></div>`;
@@ -1443,8 +1460,10 @@ function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, start
   // Calendar
   html += renderCalendar(result, dates, holidaySet, colorMap);
 
-  // ===== ABOUT THE MODEL SECTION (hidden by default, toggled via nav button) =====
-  html += `<div id="aboutSection">`;
+  html += `</div>`; // close tab-roster
+
+  // ===== ABOUT THE MODEL TAB (hidden by default) =====
+  html += `<div id="tab-about" style="display:none">`;
   const acard = 'background:#fff;border:1px solid #dde3ea;border-radius:10px;overflow:hidden;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06)';
   const ahdr = 'background:var(--navy);color:var(--gold);padding:10px 18px;font-weight:700;font-size:0.92rem;text-transform:uppercase;letter-spacing:1px';
   const abody = 'padding:20px 24px;font-size:0.88rem;color:#1e293b;line-height:1.7';
@@ -1547,7 +1566,7 @@ function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, start
     </ul>
   </div></div>`;
 
-  html += `</div>`; // aboutSection
+  html += `</div>`; // close tab-about
 
   html += `</div>`; // dash-container
 
