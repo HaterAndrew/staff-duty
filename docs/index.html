@@ -1411,6 +1411,109 @@ function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, start
   // Calendar
   html += renderCalendar(result, dates, holidaySet, colorMap);
 
+  // ===== ABOUT THE MODEL SECTION (matches staff duty dashboard aesthetic) =====
+  const acard = 'background:#fff;border:1px solid #dde3ea;border-radius:10px;overflow:hidden;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06)';
+  const ahdr = 'background:var(--navy);color:var(--gold);padding:10px 18px;font-weight:700;font-size:0.92rem;text-transform:uppercase;letter-spacing:1px';
+  const abody = 'padding:20px 24px;font-size:0.88rem;color:#1e293b;line-height:1.7';
+  const aeq = 'background:var(--navy);color:var(--gold);font-family:monospace;font-size:0.88rem;text-align:center;padding:14px 18px;border-radius:6px;letter-spacing:1px';
+  const anote = 'font-size:0.82rem;color:#6b7a8d;margin-top:12px;font-style:italic';
+
+  html += `<div class="section-hdr"><span class="section-badge">MODEL</span><span class="section-title">About the Solver</span></div>`;
+
+  // Card 1: The Core Problem
+  html += `<div style="${acard}"><div style="${ahdr}">The Core Problem</div>
+  <div style="${abody}">
+    <p style="margin-bottom:12px">Staff duty requires assigning one SDNCO and one SD Runner from the headquarters directorates every single day of the quarter &mdash; weekdays, weekends, and holidays.</p>
+    <p style="margin-bottom:12px">The challenge: distribute this burden <strong>proportionally</strong>. A directorate with 10 eligible soldiers should pull roughly twice as many duties as one with 5 &mdash; including its fair share of weekends and holidays.</p>
+    <p>Manual scheduling is tedious and tends to be unfair. This tool automates it using mathematical optimization.</p>
+  </div></div>`;
+
+  // Card 2: ILP
+  html += `<div style="${acard}"><div style="${ahdr}">Integer Linear Programming (ILP)</div>
+  <div style="${abody}">
+    <p style="margin-bottom:12px">An ILP solver finds the mathematically <strong>optimal</strong> assignment &mdash; not just a good one, the <em>best possible</em> one given the constraints.</p>
+    <p style="margin-bottom:12px">Think of it like this: instead of trying thousands of schedules by hand, the solver evaluates millions of possibilities in seconds using the <strong>HiGHS</strong> optimization engine (the same technology used in logistics, airline scheduling, and supply chain planning).</p>
+    <p>The solver runs entirely in your browser via WebAssembly &mdash; <strong>no data leaves your machine</strong>.</p>
+  </div></div>`;
+
+  // Card 3: Decision Variables
+  html += `<div style="${acard}"><div style="${ahdr}">Decision Variables</div>
+  <div style="${abody}">
+    <p style="margin-bottom:12px">For each directorate <em>d</em> and each day <em>t</em>:</p>
+    <ul style="margin:0 0 12px 20px">
+      <li style="margin-bottom:6px"><strong>x<sub>S</sub>[d,t]</strong> = 1 if directorate <em>d</em> is assigned SDNCO on day <em>t</em>, 0 otherwise</li>
+      <li><strong>x<sub>R</sub>[d,t]</strong> = 1 if directorate <em>d</em> is assigned Runner on day <em>t</em>, 0 otherwise</li>
+    </ul>
+    <p style="margin-bottom:16px">For a 92-day quarter with 7 directorates, that's <strong>7 &times; 92 &times; 2 = 1,288</strong> binary decision variables.</p>
+    <div style="${aeq}">x<sub>S</sub>[d,t] &isin; {0, 1} &nbsp;&nbsp;&nbsp; x<sub>R</sub>[d,t] &isin; {0, 1} &nbsp;&nbsp;&nbsp; &forall; d &isin; Directorates, t &isin; Days</div>
+  </div></div>`;
+
+  // Card 4: Hard Constraints
+  html += `<div style="${acard}"><div style="${ahdr}">Hard Constraints (Must Be Satisfied)</div>
+  <div style="padding:0">
+    <table class="dtable"><thead><tr>
+      <th>ID</th><th>Constraint</th><th>Formula</th><th>Purpose</th>
+    </tr></thead><tbody>
+      <tr><td><strong>C1</strong></td><td>Coverage</td><td style="font-family:monospace;font-size:0.85rem">&Sigma;<sub>d</sub> x[d,t] = 1 for each day t</td><td>Exactly one directorate per day per role</td></tr>
+      <tr><td><strong>C2</strong></td><td>Quota Bounds</td><td style="font-family:monospace;font-size:0.85rem">floor(q<sub>d</sub>) &le; &Sigma;<sub>t</sub> x[d,t] &le; ceil(q<sub>d</sub>)</td><td>Total days proportional to eligible count</td></tr>
+      <tr><td><strong>C4</strong></td><td>Cooldown</td><td style="font-family:monospace;font-size:0.85rem">x[d,t] + x[d,t+1] &le; 1</td><td>No back-to-back days for same directorate</td></tr>
+    </tbody></table>
+    <p style="${anote};padding:0 24px 16px">Where q<sub>d</sub> = (eligible<sub>d</sub> / total_eligible) &times; n_days</p>
+  </div></div>`;
+
+  // Card 5: Soft Constraints
+  html += `<div style="${acard}"><div style="${ahdr}">Soft Constraints (Penalties in Objective)</div>
+  <div style="padding:0">
+    <table class="dtable"><thead><tr>
+      <th>ID</th><th>Constraint</th><th style="text-align:center">Weight</th><th>Purpose</th>
+    </tr></thead><tbody>
+      <tr><td><strong>C3</strong></td><td>Hard-day equity</td><td style="text-align:center;font-weight:700;color:var(--navy)">1.0</td><td>Weekend/holiday duties proportional to eligible count</td></tr>
+      <tr><td><strong>C5</strong></td><td>Monthly spread</td><td style="text-align:center;font-weight:700;color:var(--navy)">1.5</td><td>Even distribution across months</td></tr>
+      <tr><td><strong>C5b</strong></td><td>Half-month spacing</td><td style="text-align:center;font-weight:700;color:var(--navy)">0.6</td><td>Even distribution within each month</td></tr>
+      <tr><td><strong>C6</strong></td><td>Same-day overlap</td><td style="text-align:center;font-weight:700;color:var(--navy)">3.0</td><td>Different directorate for SDNCO and Runner on same day</td></tr>
+    </tbody></table>
+    <div style="padding:14px 24px 16px;${abody}">Soft constraints aren't absolute rules &mdash; the solver <em>minimizes</em> violations. The penalty weights control priorities. Same-day overlap (<strong>3.0</strong>) is penalized most heavily because having the same directorate fill both roles on one day is operationally undesirable.</div>
+  </div></div>`;
+
+  // Card 6: Objective Function
+  html += `<div style="${acard}"><div style="${ahdr}">Objective Function</div>
+  <div style="${abody}">
+    <div style="${aeq};line-height:1.8;margin-bottom:16px">Minimize: &Sigma; (hard-day deviation) + 1.5 &times; &Sigma; (monthly spread)<br>+ 0.6 &times; &Sigma; (half-month deviation) + 3.0 &times; &Sigma; (same-day overlap)</div>
+    <p>The solver minimizes the total weighted penalty. A perfect score of <strong>0</strong> means every directorate got exactly its proportional share of every type of day, evenly spread across months, with no same-day overlaps.</p>
+  </div></div>`;
+
+  // Card 7: Greedy Fallback
+  html += `<div style="${acard}"><div style="${ahdr}">Greedy Fallback</div>
+  <div style="${abody}">
+    <p>If the ILP solver cannot find an optimal solution within 120 seconds (extremely unlikely for typical inputs), the tool falls back to a greedy heuristic that assigns days one at a time, respecting cooldown and overlap rules. The greedy approach produces proportionally fair results but cannot guarantee global optimality.</p>
+  </div></div>`;
+
+  // Card 8: Fairness Metrics
+  html += `<div style="${acard}"><div style="${ahdr}">Fairness Metrics</div>
+  <div style="${abody}">
+    <p style="margin-bottom:12px">The <strong>Gini coefficient</strong> (0&ndash;1) measures inequality in the distribution:</p>
+    <ul style="margin:0 0 12px 20px">
+      <li style="margin-bottom:6px"><strong style="color:#166534">0.000</strong> = perfectly equal (every directorate got exactly its fair share)</li>
+      <li style="margin-bottom:6px"><strong style="color:#854d0e">&le; 0.050</strong> = excellent (typical ILP result)</li>
+      <li><strong style="color:#991b1b">&gt; 0.100</strong> = review needed (unusual &mdash; may indicate conflicting constraints)</li>
+    </ul>
+    <p>The dashboard reports two Gini values: one for total days, one for hard days (weekends + holidays).</p>
+  </div></div>`;
+
+  // Card 9: Technical Details
+  html += `<div style="${acard}"><div style="${ahdr}">Technical Details</div>
+  <div style="${abody}">
+    <ul style="margin:0 0 0 20px">
+      <li style="margin-bottom:8px"><strong>Solver</strong>: HiGHS 1.8.0 (WASM), same engine used by SciPy, Google OR-Tools, and Julia JuMP</li>
+      <li style="margin-bottom:8px"><strong>Problem class</strong>: Mixed-Integer Linear Program (MILP)</li>
+      <li style="margin-bottom:8px"><strong>Time limit</strong>: 120 seconds (typical solve: &lt;5 seconds)</li>
+      <li style="margin-bottom:8px"><strong>Variables</strong>: ~2n &times; d binary + ~8d continuous (n = days, d = directorates)</li>
+      <li style="margin-bottom:8px"><strong>Constraints</strong>: ~2n + 6d + 2nd + monthly/half-monthly terms</li>
+      <li style="margin-bottom:8px"><strong>Execution</strong>: 100% client-side &mdash; no server, no network requests, no data exfiltration</li>
+      <li><strong>Holiday source</strong>: US federal holidays (algorithmic) + USAREUR-AF bridge-day heuristic + user-supplied DONSAs</li>
+    </ul>
+  </div></div>`;
+
   html += `</div>`; // dash-container
 
   // Footer
