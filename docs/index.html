@@ -1148,89 +1148,107 @@ function gini(values) {
 }
 
 /* ============================================================
-   EXCEL EXPORT
+   EXCEL EXPORT — HTML table .xls matching Fly.io Roster sheet
+   Copy-paste friendly: matches the real workbook format
    ============================================================ */
 function exportExcel() {
   if (!lastResult) {
     alert('No roster data. Generate a roster first.');
     return;
   }
-  const { result, dirsSDNCO, dirsRunner, dates, holidaySet, startDate, endDate } = lastResult;
+  const { result, dirsSDNCO, dates, holidaySet, startDate, endDate } = lastResult;
 
-  let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:spreadsheet" xmlns="http://www.w3.org/TR/REC-html40">';
-  html += '<head><meta charset="UTF-8"><style>td,th{mso-number-format:"\\@";}</style></head><body>';
+  // Excel color palette for directorates (mapped 1:1 from DIR_COLORS indices)
+  const EXCEL_DIR_COLORS = [
+    '4472C4','ED7D31','A9D18E','FF0000','FFC000',
+    '00B0F0','7030A0','92D050','FF6699','00B050',
+    'BF8F00','9966FF','FF3399','00CED1','4338CA'
+  ];
 
-  // Sheet 1: Roster
-  html += '<h2>Daily Roster</h2>';
-  html += '<table border="1" cellpadding="4" cellspacing="0">';
-  html += '<tr style="background:#0C2340;color:#C8971A;font-weight:bold;"><th>Date</th><th>Day</th><th>Type</th><th>SDNCO</th><th>SD Runner</th></tr>';
+  const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const SHORT_DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
+  // Build directorate -> color map from dirsSDNCO array indices
+  const dirColorMap = {};
+  dirsSDNCO.forEach((d, i) => {
+    dirColorMap[d.name] = EXCEL_DIR_COLORS[i % EXCEL_DIR_COLORS.length];
+  });
+
+  // Format a date string as "01 Jul 2026"
+  function fmtDateExcel(ds) {
+    const dt = parseDate(ds);
+    return `${String(dt.getDate()).padStart(2,'0')} ${SHORT_MONTHS[dt.getMonth()]} ${dt.getFullYear()}`;
+  }
+
+  const sd = parseDate(startDate);
+  const ed = parseDate(endDate);
+  const titleStart = `${String(sd.getDate()).padStart(2,'0')} ${SHORT_MONTHS[sd.getMonth()]} ${sd.getFullYear()}`;
+  const titleEnd = `${String(ed.getDate()).padStart(2,'0')} ${SHORT_MONTHS[ed.getMonth()]} ${ed.getFullYear()}`;
+
+  let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:spreadsheet">';
+  html += '<head><meta charset="utf-8"><style>';
+  html += 'td, th { mso-number-format:\\@; }';
+  html += '</style></head><body>';
+  html += '<table border="1" cellspacing="0" cellpadding="4">';
+
+  // Row 1: merged title
+  html += '<tr>';
+  html += `<td colspan="7" style="background:#0C2340;color:#FFFFFF;font-weight:bold;font-size:14pt;text-align:center;">`;
+  html += `ASCC HQ STAFF DUTY ROSTER  \u2014  ${titleStart} \u2013 ${titleEnd}`;
+  html += '</td></tr>';
+
+  // Row 2: column headers
+  html += '<tr>';
+  const headers = ['DATE','DAY','TYPE','SDNCO UNIT','SDNCO NAME','SD_Runner UNIT','SD_Runner NAME'];
+  headers.forEach(h => {
+    html += `<th style="background:#1F3864;color:#FFFFFF;font-weight:bold;font-size:10pt;">${h}</th>`;
+  });
+  html += '</tr>';
+
+  // Data rows
   let prevMonth = -1;
   dates.forEach(ds => {
     const dt = parseDate(ds);
     const month = dt.getMonth();
-    if (month !== prevMonth) {
-      prevMonth = month;
-      html += `<tr style="background:#0C2340;color:#C8971A;font-weight:bold;"><td colspan="5">${MONTH_NAMES[month]} ${dt.getFullYear()}</td></tr>`;
-    }
     const cls = classifyDay(ds, holidaySet);
-    const dayName = DAY_NAMES[dt.getDay()];
-    let bgColor = '#ffffff';
-    if (cls === 'WEEKEND') bgColor = '#eff6ff';
-    if (cls === 'HOLIDAY') bgColor = '#fff7ed';
+    const dayName = SHORT_DAYS[dt.getDay()];
+    const dateLabel = fmtDateExcel(ds);
+    const typeLabel = cls === 'WEEKDAY' ? 'Weekday' : cls === 'WEEKEND' ? 'Weekend' : 'Holiday';
     const sdncoDir = result.sdnco.assignments[ds];
     const runnerDir = result.runner.assignments[ds];
-    html += `<tr style="background:${bgColor}"><td>${ds}</td><td>${dayName}</td><td>${cls}</td><td>${sdncoDir}</td><td>${runnerDir}</td></tr>`;
+
+    const isFirstOfMonth = (month !== prevMonth);
+    prevMonth = month;
+
+    // Row background by day type
+    let rowBg;
+    if (cls === 'WEEKEND') { rowBg = '#DDEBF7'; }
+    else if (cls === 'HOLIDAY') { rowBg = '#FCE4D6'; }
+    else { rowBg = '#FFFFFF'; }
+
+    const dateBold = isFirstOfMonth ? 'font-weight:bold;' : '';
+    const sdncoColor = dirColorMap[sdncoDir] || 'FFFFFF';
+    const runnerColor = dirColorMap[runnerDir] || 'FFFFFF';
+
+    html += '<tr>';
+    html += `<td style="background:${rowBg};${dateBold}">${dateLabel}</td>`;
+    html += `<td style="background:${rowBg};">${dayName}</td>`;
+    html += `<td style="background:${rowBg};">${typeLabel}</td>`;
+    html += `<td style="background:#${sdncoColor};font-weight:bold;">${sdncoDir}</td>`;
+    html += `<td style="background:${rowBg};"></td>`;
+    html += `<td style="background:#${runnerColor};font-weight:bold;">${runnerDir}</td>`;
+    html += `<td style="background:${rowBg};"></td>`;
+    html += '</tr>';
   });
-  html += '</table><br><br>';
 
-  // Sheet 2: Summary
-  const H_sdnco = dirsSDNCO.reduce((s,d) => s + d.eligible, 0);
-  const H_runner = dirsRunner.reduce((s,d) => s + d.eligible, 0);
-  const nDays = dates.length;
-
-  html += '<h2>SDNCO Summary</h2>';
-  html += '<table border="1" cellpadding="4" cellspacing="0">';
-  html += '<tr style="background:#0C2340;color:#C8971A;font-weight:bold;"><th>Directorate</th><th>Eligible</th><th>Target</th><th>Actual</th><th>Weekday</th><th>Weekend</th><th>Holiday</th><th>Hard Days</th></tr>';
-  result.sdnco.stats.forEach(s => {
-    let wkend=0, hol=0;
-    dates.forEach(d => {
-      if (result.sdnco.assignments[d] === s.name) {
-        const c = classifyDay(d, holidaySet);
-        if (c === 'WEEKEND') wkend++;
-        if (c === 'HOLIDAY') hol++;
-      }
-    });
-    html += `<tr><td>${s.name}</td><td>${s.eligible}</td><td>${s.totalTarget.toFixed(1)}</td><td>${s.assignedTotal}</td><td>${s.assignedSoft}</td><td>${wkend}</td><td>${hol}</td><td>${s.assignedHard}</td></tr>`;
-  });
-  html += '</table><br><br>';
-
-  html += '<h2>SD Runner Summary</h2>';
-  html += '<table border="1" cellpadding="4" cellspacing="0">';
-  html += '<tr style="background:#0C2340;color:#C8971A;font-weight:bold;"><th>Directorate</th><th>Eligible</th><th>Target</th><th>Actual</th><th>Weekday</th><th>Weekend</th><th>Holiday</th><th>Hard Days</th></tr>';
-  result.runner.stats.forEach(s => {
-    let wkend=0, hol=0;
-    dates.forEach(d => {
-      if (result.runner.assignments[d] === s.name) {
-        const c = classifyDay(d, holidaySet);
-        if (c === 'WEEKEND') wkend++;
-        if (c === 'HOLIDAY') hol++;
-      }
-    });
-    html += `<tr><td>${s.name}</td><td>${s.eligible}</td><td>${s.totalTarget.toFixed(1)}</td><td>${s.assignedTotal}</td><td>${s.assignedSoft}</td><td>${wkend}</td><td>${hol}</td><td>${s.assignedHard}</td></tr>`;
-  });
-  html += '</table>';
-
-  html += '</body></html>';
+  html += '</table></body></html>';
 
   const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `staff_duty_${startDate}_${endDate}.xls`;
-  document.body.appendChild(a);
+  a.download = `staff_duty_${lastResult.startDate}_${lastResult.endDate}.xls`;
   a.click();
-  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
