@@ -1,212 +1,372 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>USAREUR-AF &middot; Staff Duty Roster Generator</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USAREUR-AF Staff Duty Roster Generator</title>
+<style>
+/* ===== FORM PAGE STYLES (Dark Theme) ===== */
+:root {
+  --navy: #0C2340;
+  --gold: #C8971A;
+  --dark: #0a1628;
+  --card: #111d30;
+  --border: #1e3050;
+  --text: #d0dae8;
+  --font: 'Segoe UI', Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body.form-page {
+  font-family: var(--font);
+  background: var(--dark);
+  color: var(--text);
+  min-height: 100vh;
+}
+body.dash-page {
+  font-family: var(--font);
+  background: #f4f6f9;
+  color: #1a1a2e;
+  min-height: 100vh;
+}
 
-    body {
-      background: #0a1628;
-      color: #d0dae8;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 0.95rem;
-      min-height: 100vh;
-    }
+/* ---------- FORM HEADER ---------- */
+.form-header {
+  background: linear-gradient(135deg, var(--navy) 0%, #0f2d4f 100%);
+  border-bottom: 3px solid var(--gold);
+  text-align: center;
+  padding: 28px 16px 22px;
+}
+.form-header .crest { margin-bottom: 10px; }
+.form-header h1 {
+  color: var(--gold);
+  font-size: 1.35rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.form-header h2 {
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.form-header .sub {
+  color: #8ea4bf;
+  font-size: 0.82rem;
+  letter-spacing: 1.5px;
+}
 
-    /* ── Header ── */
-    header {
-      background: linear-gradient(135deg, #0C2340 0%, #16304d 100%);
-      border-bottom: 3px solid #C8971A;
-      padding: 1.25rem 2rem;
-      display: flex;
-      align-items: center;
-      gap: 1.5rem;
-    }
-    header svg { flex-shrink: 0; }
-    .hdr-text  { display: flex; flex-direction: column; gap: 0.2rem; }
-    .hdr-unit  { color: #C8971A; font-size: 0.72rem; font-weight: 700; letter-spacing: .16em; }
-    .hdr-title { color: #fff; font-size: 1.45rem; font-weight: 700; letter-spacing: .04em; }
-    .hdr-sub   { color: rgba(200,151,26,.65); font-size: 0.75rem; letter-spacing: .1em; }
+/* ---------- FORM CARDS ---------- */
+.form-container { max-width: 860px; margin: 28px auto; padding: 0 16px 40px; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 22px;
+  overflow: hidden;
+}
+.card-hdr {
+  background: var(--navy);
+  border-bottom: 2px solid var(--gold);
+  padding: 10px 18px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.card-body { padding: 18px; }
 
-    /* ── Main layout ── */
-    main { max-width: 820px; margin: 2.5rem auto; padding: 0 1.5rem 4rem; }
+/* ---------- FORM ELEMENTS ---------- */
+label.flabel {
+  display: block;
+  color: var(--gold);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+input[type="date"], input[type="text"], input[type="number"] {
+  background: #0d1a2d;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 0.95rem;
+  font-family: var(--font);
+  width: 100%;
+}
+input:focus { outline: none; border-color: var(--gold); }
+.row2 { display: flex; gap: 16px; }
+.row2 > div { flex: 1; }
 
-    /* ── Cards ── */
-    .card {
-      background: #111d30;
-      border: 1px solid #1e3050;
-      border-radius: 6px;
-      margin-bottom: 1.5rem;
-      overflow: hidden;
-    }
-    .card-hdr {
-      background: #0C2340;
-      border-bottom: 2px solid #C8971A;
-      padding: 0.55rem 1.2rem;
-      display: flex;
-      align-items: center;
-      gap: 0.7rem;
-    }
-    .badge {
-      background: #C8971A;
-      color: #0C2340;
-      font-size: 0.68rem;
-      font-weight: 800;
-      letter-spacing: .12em;
-      padding: .15rem .5rem;
-      border-radius: 3px;
-    }
-    .card-title { color: #fff; font-size: 0.88rem; font-weight: 600; letter-spacing: .06em; }
-    .card-body  { padding: 1.2rem; }
+/* Directorate table */
+.dir-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.dir-table th {
+  background: var(--navy);
+  color: var(--gold);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 10px;
+  text-align: left;
+}
+.dir-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.dir-table input[type="text"], .dir-table input[type="number"] {
+  padding: 7px 10px;
+  font-size: 0.9rem;
+}
+.dir-table .remove-btn {
+  background: #5a1a1a;
+  color: #e87474;
+  border: 1px solid #7a2a2a;
+  border-radius: 5px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.dir-table .remove-btn:hover { background: #7a2a2a; }
 
-    /* ── Inputs ── */
-    .inp {
-      background: #0d1d33;
-      border: 1px solid #1e3050;
-      border-radius: 4px;
-      color: #d0dae8;
-      padding: .42rem .6rem;
-      font-size: 0.88rem;
-      font-family: inherit;
-      transition: border-color .15s;
-      width: 100%;
-    }
-    .inp:focus  { outline: none; border-color: #C8971A; }
-    .inp.num    { width: 90px; text-align: center; }
-    input[type="date"].inp { width: 165px; color-scheme: dark; }
+.btn-row { display: flex; gap: 10px; margin-top: 12px; }
+.btn-add {
+  background: #122a45;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  padding: 8px 18px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.btn-add:hover { background: #1a3a5c; }
 
-    /* ── Date row ── */
-    .date-row   { display: flex; gap: 2rem; flex-wrap: wrap; }
-    .date-group { display: flex; flex-direction: column; gap: 0.4rem; }
-    .field-lbl  { font-size: 0.73rem; color: #C8971A; font-weight: 700; letter-spacing: .1em; }
+/* Toggle */
+.toggle-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px; font-size: 0.9rem;
+}
+.toggle-row input[type="checkbox"] {
+  width: 18px; height: 18px; accent-color: var(--gold);
+}
 
-    /* ── Toggle ── */
-    .toggle-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .85rem; }
-    .toggle-row label { font-size: .85rem; cursor: pointer; user-select: none; }
-    input[type="checkbox"] { width: 15px; height: 15px; accent-color: #C8971A; cursor: pointer; flex-shrink: 0; }
+/* Submit */
+.btn-generate {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--gold), #e0a820);
+  color: var(--navy);
+  border: none;
+  border-radius: 8px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-generate:hover { filter: brightness(1.08); transform: translateY(-1px); }
 
-    /* ── Directorates table ── */
-    .dir-table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
-    .dir-table th {
-      text-align: left;
-      font-size: .72rem;
-      font-weight: 700;
-      letter-spacing: .1em;
-      color: #C8971A;
-      padding: .4rem .5rem .55rem;
-      border-bottom: 1px solid #1e3050;
-    }
-    .dir-table td { padding: .3rem .5rem; vertical-align: middle; }
-    .dir-table tr:not(:last-child) td { border-bottom: 1px solid rgba(30,48,80,.5); }
+/* Loading overlay */
+.loading-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(10,22,40,0.92);
+  z-index: 9999;
+  justify-content: center; align-items: center;
+  flex-direction: column;
+}
+.loading-overlay.active { display: flex; }
+.spinner {
+  width: 52px; height: 52px;
+  border: 5px solid var(--border);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 18px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay .msg { color: var(--gold); font-size: 1.1rem; font-weight: 600; }
 
-    .rm-btn {
-      background: transparent;
-      border: 1px solid rgba(255,80,80,.35);
-      color: rgba(255,110,110,.65);
-      border-radius: 4px;
-      cursor: pointer;
-      padding: .25rem .55rem;
-      font-size: .8rem;
-      text-decoration: none;
-      display: inline-block;
-      transition: all .15s;
-    }
-    .rm-btn:hover { background: rgba(255,60,60,.15); color: #ff6060; border-color: #ff5050; }
+/* ===== DASHBOARD STYLES (Light Theme) ===== */
+.unclas-banner {
+  background: #16a34a;
+  color: #fff;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 3px;
+  padding: 5px 0;
+}
+.dash-header {
+  background: linear-gradient(135deg, var(--navy) 0%, #0f2d4f 100%);
+  border-bottom: 3px solid var(--gold);
+  text-align: center;
+  padding: 22px 16px 18px;
+  color: #fff;
+}
+.dash-header h1 { color: var(--gold); font-size: 1.2rem; letter-spacing: 2px; margin-bottom: 2px; }
+.dash-header h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+.dash-header .sub { color: #8ea4bf; font-size: 0.82rem; }
 
-    .add-btn {
-      background: transparent;
-      border: 1px dashed #C8971A;
-      color: #C8971A;
-      border-radius: 4px;
-      cursor: pointer;
-      padding: .4rem 1rem;
-      font-size: .8rem;
-      font-weight: 700;
-      letter-spacing: .08em;
-      margin-top: .75rem;
-      text-decoration: none;
-      display: inline-block;
-      transition: all .15s;
-    }
-    .add-btn:hover { background: rgba(200,151,26,.1); }
+.sticky-nav {
+  position: sticky; top: 0; z-index: 500;
+  background: var(--navy);
+  border-bottom: 2px solid var(--gold);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 20px;
+  color: #8ea4bf;
+  font-size: 0.82rem;
+}
+.sticky-nav a {
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.sticky-nav a:hover { text-decoration: underline; }
 
-    /* ── Options ── */
-    .option-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; }
-    .option-row label { font-size: .85rem; cursor: pointer; user-select: none; }
-    .option-note {
-      font-size: .75rem;
-      color: rgba(200,180,120,.5);
-      margin-left: 1.6rem;
-      margin-top: -.2rem;
-      margin-bottom: .75rem;
-    }
-    .extra-hol { display: flex; flex-direction: column; gap: .4rem; margin-top: .4rem; }
-    #extra_holidays { max-width: 380px; }
+.dash-container { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
 
-    /* ── Submit ── */
-    .submit-wrap { text-align: center; margin-top: 2rem; }
-    .submit-btn {
-      background: linear-gradient(135deg, #C8971A, #a07515);
-      border: none;
-      border-radius: 5px;
-      color: #0C2340;
-      cursor: pointer;
-      font-size: .95rem;
-      font-weight: 800;
-      letter-spacing: .12em;
-      padding: .85rem 3.5rem;
-      text-transform: uppercase;
-      box-shadow: 0 3px 12px rgba(200,151,26,.3);
-      transition: all .2s;
-    }
-    .submit-btn:hover    { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(200,151,26,.45); }
-    .submit-btn:active   { transform: translateY(0); }
-    .submit-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+/* Stat cards */
+.stat-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.stat-card {
+  flex: 1; min-width: 140px;
+  background: #fff;
+  border: 1px solid #dde3ea;
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.stat-card .val { font-size: 2rem; font-weight: 800; color: var(--navy); }
+.stat-card .lbl { font-size: 0.78rem; color: #6b7a8d; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
 
-    /* ── Loading overlay ── */
-    #loading {
-      display: none;
-      position: fixed; inset: 0;
-      background: rgba(10,22,40,.88);
-      z-index: 999;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 1rem;
-    }
-    #loading.active { display: flex; }
-    .spinner {
-      width: 50px; height: 50px;
-      border: 4px solid rgba(200,151,26,.2);
-      border-top-color: #C8971A;
-      border-radius: 50%;
-      animation: spin .85s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .loading-text { color: #C8971A; font-size: .88rem; font-weight: 700; letter-spacing: .12em; }
+/* Legend */
+.legend-box {
+  background: #fff;
+  border: 1px solid #dde3ea;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+.legend-swatch { width: 16px; height: 16px; border-radius: 3px; }
+.legend-sep { width: 1px; height: 20px; background: #dde3ea; }
 
-    footer {
-      text-align: center;
-      color: rgba(150,160,180,.35);
-      font-size: .7rem;
-      letter-spacing: .1em;
-      padding: 2rem;
-      border-top: 1px solid #1e3050;
-      margin-top: 2rem;
-    }
-  </style>
+/* Dashboard tables */
+.dtable-wrap {
+  background: #fff;
+  border: 1px solid #dde3ea;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.dtable-hdr {
+  background: var(--navy);
+  color: var(--gold);
+  padding: 10px 18px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.dtable { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.dtable th {
+  background: #f0f3f7;
+  color: var(--navy);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 2px solid #dde3ea;
+  position: sticky; top: 0;
+}
+.dtable td { padding: 7px 10px; border-bottom: 1px solid #eef1f5; }
+.dtable tr:hover { background: #f8f9fb; }
+
+/* Bar in summary */
+.bar-cell { display: flex; align-items: center; gap: 8px; }
+.bar-bg { height: 14px; border-radius: 3px; background: #e2e8f0; flex: 1; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; }
+.bar-val { font-weight: 700; min-width: 24px; text-align: right; }
+
+/* Side-by-side */
+.side2 { display: flex; gap: 20px; flex-wrap: wrap; }
+.side2 > div { flex: 1; min-width: 360px; }
+
+/* Calendar */
+.cal-row-weekend { background: #eff6ff !important; }
+.cal-row-holiday { background: #fff7ed !important; }
+.cal-month-divider { background: var(--navy) !important; }
+.cal-month-divider td { color: var(--gold) !important; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px !important; }
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.badge-weekday { background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+.badge-weekend { background: #bfdbfe; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+.badge-holiday { background: #fed7aa; color: #9a3412; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+
+/* Fairness */
+.verdict-banner {
+  border-radius: 8px;
+  padding: 14px 20px;
+  margin-bottom: 14px;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.verdict-green { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.verdict-yellow { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+.verdict-red { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.pill-green { background: #dcfce7; color: #166534; }
+.pill-yellow { background: #fef9c3; color: #854d0e; }
+.pill-red { background: #fee2e2; color: #991b1b; }
+.gini-note { font-size: 0.8rem; color: #6b7a8d; margin-top: 10px; font-style: italic; }
+
+/* Calendar sticky header */
+.cal-table-wrap { max-height: none; overflow: visible; }
+.cal-table-wrap .dtable th { position: sticky; top: 42px; z-index: 10; }
+
+@media (max-width: 700px) {
+  .side2 { flex-direction: column; }
+  .stat-row { flex-direction: column; }
+  .row2 { flex-direction: column; }
+}
+</style>
 </head>
-<body>
+<body class="form-page" id="pageBody">
 
-<div id="loading">
+<!-- ===== LOADING OVERLAY ===== -->
+<div class="loading-overlay" id="loadingOverlay">
   <div class="spinner"></div>
-  <div class="loading-text">SOLVING ROSTER &mdash; PLEASE WAIT&hellip;</div>
+  <div class="msg">Generating roster...</div>
 </div>
 
-<header>
-<svg width="60" height="79" viewBox="0 0 246.08 322.7" xmlns="http://www.w3.org/2000/svg">
+<!-- ===== FORM PAGE ===== -->
+<div id="formPage">
+  <div class="form-header">
+    <div class="crest">
+      <svg width="60" height="79" viewBox="0 0 246.08 322.7" xmlns="http://www.w3.org/2000/svg">
 <path d="m123.04 1.2002c-66.774-0.10337-121.84 36.129-121.84 36.129s-0.41936 102.81 31.635 167.86c38.542 78.221 87.955 114.53 90.014 116.02v0.28711s0.17836-0.13656 0.18945-0.14453c0.0111 8e-3 0.18945 0.14453 0.18945 0.14453v-0.28711c2.0583-1.491 51.471-37.799 90.014-116.02 32.054-65.053 31.635-167.86 31.635-167.86s-55.064-36.232-121.84-36.129z" fill="#171695"/>
 <path d="m117.65 200.15c0.22276-24.163 0.72429-48.331 0.76474-72.491-3.4093-2.716-6.1771-7.05-5.7856-11.546 1.9789-5.9597 1.7443-13.803-3.9582-17.636 1.8433 5.0171 0.26645 10.325-2.0321 14.893-3.226 6.8124-3.2514 15.826 2.3417 21.48 3.7657 3.5442 4.8942 8.9284 4.1338 13.888-0.90701-4.1592-3.1854-8.269-7.0592-10.453-2.6858-1.4232-6.0935-2.2012-7.68-5.4303-1.8455-4.6228 0.57719-10.883-3.664-14.655-2.1153-2.7543-0.60992 2.8488-1.4523 6.005-2.7227 6.9975-2.736 16.688 3.9518 21.421 7.0203 3.051 11.93 10.347 14.244 17.644 0.64053 2.8573 3.6353 9.829-1.026 5.0949-2.0867-1.4452-4.7634-1.5364-7.2033-2.196-2.2111-0.97619-4.6484-2.1535-5.8647-4.6307-1.2525-6.7559-3.6439 3.0959-2.5354 5.7975 0.75012 3.2858 3.5415 5.8686 6.5368 6.7892 5.3657 2.4602 10.013 7.6601 11.416 13.658 1.4895 3.9304 0.0343 1.8767-2.3495 1.4882-4.1636-0.67852-8.7009-1.1125-8.6626-6.3935-1.5588 2.6439-0.35735 9.9462 3.2674 12.781 4.1804 3.9253 8.5014 8.6678 7.7912 14.848-1.3426-1.0678-3.4449-6.4157-6.6622-8.0086-2.5913-1.283-5.5194-1.6909-8.4267-1.92-4.2628-0.33596-5.5236-7.0758-6.278-8.16-2.1353 6.2842-1.7474 14.361 4.1447 18.4 1.8745 1.3902 3.8662 1.9662 5.76 3.2 6.1234 3.616 12.541 9.1598 12.866 16.876-2.1926-1.5176-4.359-1.9963-6.8931-2.5488-5.1244-1.1616-6.3828-3.2136-7.6173-5.6054-1.4068 3.7385-1.4076 9.087 2.604 11.332 2.3092 1.2364 5.0499 1.6519 7.36 2.7733 3.2903 1.5294 6.17 4.5116 7.5368 7.9542 0.16138-14.883 0.24569-29.766 0.43081-44.648zm11.787 44.36c2.0528-3.4325 5.9175-6.1306 9.2582-7.6665 3.1644-1.7088 5.4601-5.2564 6.4126-8.8633 0.9782-2.5496 3.1406-4.6863 5.5341-5.5192-1.4595-2.3635-7.7145-1.0161-8.9744 2.2226-1.2402 2.1941-2.0186 6.2395-4.8538 6.6002-1.8386-4.7818 1.8391-9.3228 5.7216-11.72 4.751-2.7173 5.9403-8.4822 5.6681-13.561-0.47323-2.6628 3.5956-7.4376-0.97477-4.7862-3.3806 2.1948-3.9949 6.2219-6.4596 8.96-1.7323 1.2846-6.6189 5.1661-4.9206 0.2601-0.15386-6.2165 6.2318-9.3808 7.6425-15.009 2.0182-5.3841 1.3992-12.149 6.3626-16.003 1.1581-1.3309 3.7292-1.4513 4.4717-2.4653-2.6409-0.81956-5.6513-1.9782-8.4833-0.916-4.0135 0.9504-5.8123 5.6086-6.8508 9.3521-0.84516 2.3388-3.826 8.1323-5.3123 6.7794-0.73094-5.4087 0.42272-11.13 4.3828-15.052 3.1556-3.1139 7.6264-5.4018 7.7325-10.478 0.85585-5.8424 0.24119-12.857 5.1679-17.054 1.2324-1.6278 4.8392-1.7365 5.3333-2.56-2.3741-1.4543-5.6625-2.2649-8.5333-1.28-4.7492 1.533-8.2315 6.7727-8.8639 11.774-0.15 2.4524-3.3149 9.591-4.6563 7.583 0.0931-7.8592 0.74192-16.675 6.5869-22.549 3.647-4.2573 4.6802-11.032 2.1333-16.008-3.2221-5.4172-2.8943-12.673-0.10357-18.353 0.33896-1.8011-3.7282 0.34225-4.8465 1.1494-4.6125 3.5553-2.6036 9.7857-2.6381 14.684-0.26023 4.4475-2.3158 9.4809-6.7049 11.115-1.8892 0.32158-0.70904 2.7968-1.0036 4.3335 0.47611 35.043 0.25317 70.091 0.97152 105.13 0.0771 2.5847 0.077 1.0616 0.80023-0.0997z" fill="#ba122b"/>
 <path d="m122.87 85.927-0.17773 0.3125-3.8711 8.1992-1.6973 152.51c3.8015 0.6784 7.7755 0.7862 11.584 0.14844l-1.3906-152.44z" fill="#fff"/>
@@ -217,267 +377,675 @@
 <path d="m124.11 56.761v2e-3c-56.714 0.0244-93.28 32.374-105.36 44.945 0.28465 2.6373 0.57198 5.2738 0.89844 7.9062 4.9499-5.8673 41.751-46.838 104.49-46.852 59.67 0.01333 95.878 37.077 103.54 45.754 0.23826-2.5683 0.47617-5.2212 0.71289-7.9551-13.065-13.255-49.088-43.775-104.22-43.799v-2e-3z" fill="#fcc916"/>
 <path d="m124.11 50.886v0.0039c-54.122-0.06546-90.709 28.355-106.13 43.201 0.24278 2.5552 0.51159 5.1072 0.78711 7.6582 11.989-12.516 48.534-44.948 105.38-44.861 55.264-0.0845 91.263 30.505 104.25 43.713 0.21785-2.5151 0.43124-5.1147 0.64453-7.7324-16.122-15.131-52.202-42.042-104.86-41.979v-0.0039z" fill="#fa9e0d"/>
 </svg>
-  <div class="hdr-text">
-    <div class="hdr-unit">UNITED STATES ARMY EUROPE AND AFRICA</div>
-    <div class="hdr-title">STAFF DUTY ROSTER GENERATOR</div>
-    <div class="hdr-sub">HHBn &nbsp;&middot;&nbsp; PROPORTIONAL FAIRNESS SOLVER &nbsp;&middot;&nbsp; ILP</div>
+    </div>
+    <h1>United States Army Europe and Africa</h1>
+    <h2>Staff Duty Roster Generator</h2>
+    <div class="sub">HHBn &middot; PROPORTIONAL FAIRNESS SOLVER &middot; GREEDY</div>
   </div>
-</header>
 
-<main>
-  <form id="roster-form">
-
-    <!-- QUARTER ---------------------------------------------------------------->
+  <div class="form-container">
+    <!-- Quarter Date Range -->
     <div class="card">
-      <div class="card-hdr">
-        <span class="badge">QUARTER</span>
-        <span class="card-title">Date Range</span>
-      </div>
+      <div class="card-hdr">Quarter Date Range</div>
       <div class="card-body">
-        <div class="date-row">
-          <div class="date-group">
-            <label class="field-lbl" for="start">START DATE</label>
-            <input type="date" id="start" name="start" value="2026-07-01" required class="inp">
+        <div class="row2">
+          <div>
+            <label class="flabel">Start Date</label>
+            <input type="date" id="startDate" value="2026-07-01">
           </div>
-          <div class="date-group">
-            <label class="field-lbl" for="end">END DATE</label>
-            <input type="date" id="end" name="end" value="2026-09-30" required class="inp">
+          <div>
+            <label class="flabel">End Date</label>
+            <input type="date" id="endDate" value="2026-09-30">
           </div>
         </div>
       </div>
     </div>
 
-    <!-- DIRECTORATES ----------------------------------------------------------->
+    <!-- Directorates -->
     <div class="card">
-      <div class="card-hdr">
-        <span class="badge">DIRECTORATES</span>
-        <span class="card-title">Eligible Personnel by Role</span>
-      </div>
+      <div class="card-hdr">Directorates</div>
       <div class="card-body">
         <div class="toggle-row">
-          <input type="checkbox" id="same_counts" name="same_counts"
-                 onchange="toggleSameCounts(this)">
-          <label for="same_counts">Use same eligible counts for SDNCO and SD Runner</label>
+          <input type="checkbox" id="sameCountToggle" checked>
+          <label for="sameCountToggle">Use same eligible counts for SDNCO and SD Runner</label>
         </div>
-        <table class="dir-table">
+        <table class="dir-table" id="dirTable">
           <thead>
             <tr>
-              <th style="width:36%">DIRECTORATE</th>
-              <th style="width:22%">SDNCO ELIGIBLE</th>
-              <th class="runner-col" style="width:22%">SD RUNNER ELIGIBLE</th>
-              <th style="width:8%"></th>
+              <th>Directorate</th>
+              <th>SDNCO Eligible</th>
+              <th class="runner-col">SD Runner Eligible</th>
+              <th style="width:60px"></th>
             </tr>
           </thead>
-          <tbody id="dir-tbody">
-        <tr class="dir-row">
-          <td><input type="text"   name="dir_name"    value="G1"   required class="inp" placeholder="G9"></td>
-          <td><input type="number" name="sdnco_count" value="10"  min="1" required class="inp num" oninput="mirrorRunner(this)"></td>
-          <td class="runner-col"><input type="number" name="runner_count" value="8" min="1" class="inp num runner-inp"></td>
-          <td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove row">&#10005;</a></td>
-        </tr>
-        <tr class="dir-row">
-          <td><input type="text"   name="dir_name"    value="G2"   required class="inp" placeholder="G9"></td>
-          <td><input type="number" name="sdnco_count" value="5"  min="1" required class="inp num" oninput="mirrorRunner(this)"></td>
-          <td class="runner-col"><input type="number" name="runner_count" value="4" min="1" class="inp num runner-inp"></td>
-          <td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove row">&#10005;</a></td>
-        </tr>
-        <tr class="dir-row">
-          <td><input type="text"   name="dir_name"    value="G3"   required class="inp" placeholder="G9"></td>
-          <td><input type="number" name="sdnco_count" value="5"  min="1" required class="inp num" oninput="mirrorRunner(this)"></td>
-          <td class="runner-col"><input type="number" name="runner_count" value="4" min="1" class="inp num runner-inp"></td>
-          <td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove row">&#10005;</a></td>
-        </tr>
-        <tr class="dir-row">
-          <td><input type="text"   name="dir_name"    value="G4"   required class="inp" placeholder="G9"></td>
-          <td><input type="number" name="sdnco_count" value="6"  min="1" required class="inp num" oninput="mirrorRunner(this)"></td>
-          <td class="runner-col"><input type="number" name="runner_count" value="5" min="1" class="inp num runner-inp"></td>
-          <td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove row">&#10005;</a></td>
-        </tr>
-        <tr class="dir-row">
-          <td><input type="text"   name="dir_name"    value="G6"   required class="inp" placeholder="G9"></td>
-          <td><input type="number" name="sdnco_count" value="8"  min="1" required class="inp num" oninput="mirrorRunner(this)"></td>
-          <td class="runner-col"><input type="number" name="runner_count" value="6" min="1" class="inp num runner-inp"></td>
-          <td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove row">&#10005;</a></td>
-        </tr>
-        <tr class="dir-row">
-          <td><input type="text"   name="dir_name"    value="G8"   required class="inp" placeholder="G9"></td>
-          <td><input type="number" name="sdnco_count" value="4"  min="1" required class="inp num" oninput="mirrorRunner(this)"></td>
-          <td class="runner-col"><input type="number" name="runner_count" value="3" min="1" class="inp num runner-inp"></td>
-          <td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove row">&#10005;</a></td>
-        </tr>
-        <tr class="dir-row">
-          <td><input type="text"   name="dir_name"    value="ACOS"   required class="inp" placeholder="G9"></td>
-          <td><input type="number" name="sdnco_count" value="3"  min="1" required class="inp num" oninput="mirrorRunner(this)"></td>
-          <td class="runner-col"><input type="number" name="runner_count" value="2" min="1" class="inp num runner-inp"></td>
-          <td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove row">&#10005;</a></td>
-        </tr>
-          </tbody>
+          <tbody id="dirBody"></tbody>
         </table>
-        <a href="#" class="add-btn" onclick="addRow();return false">+ ADD DIRECTORATE</a>
+        <div class="btn-row">
+          <button class="btn-add" onclick="addDirRow('', '', '')">+ Add Directorate</button>
+        </div>
       </div>
     </div>
 
-    <!-- OPTIONS ---------------------------------------------------------------->
+    <!-- Options -->
     <div class="card">
-      <div class="card-hdr">
-        <span class="badge">OPTIONS</span>
-        <span class="card-title">Calendar &amp; Holiday Settings</span>
-      </div>
+      <div class="card-hdr">Options</div>
       <div class="card-body">
-        <div style="background:rgba(200,151,26,.12);border:1px solid rgba(200,151,26,.35);border-radius:4px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.82rem;line-height:1.5;">
-          <strong style="color:#C8971A;">&#9888; MANUAL HOLIDAY INPUT REQUIRED</strong><br>
-          US federal holidays and USAREUR-AF bridge days (4-day weekends) are included automatically.
-          You <strong>must</strong> manually enter any command-directed training holidays and DONSAs below.
-          Refer to the current <strong>AEA Pam 350-1</strong> or your unit training calendar for accurate dates.
-        </div>
-        <div class="extra-hol">
-          <label class="field-lbl" for="extra_holidays">TRAINING HOLIDAYS &amp; DONSAs</label>
-          <input type="text" id="extra_holidays" name="extra_holidays" class="inp"
-                 placeholder="YYYY-MM-DD, YYYY-MM-DD, &hellip;">
-        </div>
+        <label class="flabel">Extra Holidays (comma-separated YYYY-MM-DD)</label>
+        <input type="text" id="extraHolidays" placeholder="e.g. 2026-07-06, 2026-09-07">
       </div>
     </div>
 
-    <div class="submit-wrap">
-      <input type="submit" class="submit-btn" id="submit-btn" value="GENERATE ROSTER">
-    </div>
+    <!-- Generate -->
+    <button class="btn-generate" onclick="generate()">Generate Roster</button>
+  </div>
+</div>
 
-  </form>
-</main>
-
-<footer>
-  HEADQUARTERS, UNITED STATES ARMY EUROPE AND AFRICA &nbsp;&bull;&nbsp;
-  HHBn STAFF DUTY ROSTER &nbsp;&bull;&nbsp; UNCLASSIFIED
-</footer>
+<!-- ===== DASHBOARD (generated dynamically) ===== -->
+<div id="dashPage" style="display:none;"></div>
 
 <script>
-  // ── Toggle same-counts ──────────────────────────────────────────────────────
-  function toggleSameCounts(cb) {
-    document.querySelectorAll('.runner-col').forEach(el => {
-      el.style.display = cb.checked ? 'none' : '';
-    });
-    document.querySelectorAll('.runner-inp').forEach(inp => {
-      inp.required = !cb.checked;
-    });
-  }
+/* ============================================================
+   CONSTANTS & GLOBALS
+   ============================================================ */
+const DIR_COLORS = [
+  '2563EB','DC2626','059669','D97706','7C3AED',
+  'DB2777','0891B2','4F46E5','B91C1C','047857',
+  '92400E','6D28D9','BE185D','0E7490','4338CA'
+];
 
-  // ── Mirror SDNCO value into Runner field (optional convenience) ─────────────
-  function mirrorRunner(sdncoInput) {
-    // Only mirror when same_counts is active — otherwise leave independent
-    if (!document.getElementById('same_counts').checked) return;
-    const row = sdncoInput.closest('tr');
-    const ri  = row.querySelector('.runner-inp');
-    if (ri) ri.value = sdncoInput.value;
-  }
+const DEFAULT_DIRS = [
+  {name:'G1', sdnco:10, runner:8},
+  {name:'G2', sdnco:5, runner:4},
+  {name:'G3', sdnco:5, runner:4},
+  {name:'G4', sdnco:6, runner:5},
+  {name:'G6', sdnco:8, runner:6},
+  {name:'G8', sdnco:4, runner:3},
+  {name:'ACOS', sdnco:3, runner:2},
+];
 
-  // ── Add directorate row ─────────────────────────────────────────────────────
-  let _rowIdx = 7;
-  function addRow() {
-    const tbody     = document.getElementById('dir-tbody');
-    const same      = document.getElementById('same_counts').checked;
-    const runnerVis = same ? 'none' : '';
+const DAY_NAMES = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-    const tr = document.createElement('tr');
-    tr.className = 'dir-row';
-    tr.innerHTML =
-      `<td><input type="text"   name="dir_name"     required class="inp" placeholder="G9"></td>` +
-      `<td><input type="number" name="sdnco_count"  value="5" min="1" required class="inp num" oninput="mirrorRunner(this)"></td>` +
-      `<td class="runner-col" style="display:${runnerVis}">` +
-        `<input type="number" name="runner_count" value="4" min="1" ${same ? '' : 'required'} class="inp num runner-inp">` +
-      `</td>` +
-      `<td><a href="#" class="rm-btn" onclick="removeRow(this);return false" title="Remove">&#10005;</a></td>`;
+/* ============================================================
+   INIT FORM
+   ============================================================ */
+window.addEventListener('DOMContentLoaded', () => {
+  DEFAULT_DIRS.forEach(d => addDirRow(d.name, d.sdnco, d.runner));
+  updateRunnerCols();
+  document.getElementById('sameCountToggle').addEventListener('change', updateRunnerCols);
+});
 
-    tbody.appendChild(tr);
-    tr.querySelector('input[name="dir_name"]').focus();
-    _rowIdx++;
-  }
+function addDirRow(name, sdnco, runner) {
+  const tbody = document.getElementById('dirBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" value="${name}" placeholder="e.g. G1" class="dir-name"></td>
+    <td><input type="number" value="${sdnco}" min="1" class="dir-sdnco"></td>
+    <td class="runner-col"><input type="number" value="${runner}" min="1" class="dir-runner"></td>
+    <td><button class="remove-btn" onclick="this.closest('tr').remove()">&#x2715;</button></td>
+  `;
+  tbody.appendChild(tr);
+}
 
-  // ── Remove directorate row ──────────────────────────────────────────────────
-  function removeRow(btn) {
-    const allRows = document.querySelectorAll('#dir-tbody .dir-row');
-    if (allRows.length <= 2) {
-      alert('A minimum of 2 directorates is required.');
-      return;
+function updateRunnerCols() {
+  const hide = document.getElementById('sameCountToggle').checked;
+  document.querySelectorAll('.runner-col').forEach(el => {
+    el.style.display = hide ? 'none' : '';
+  });
+}
+
+/* ============================================================
+   DATE / HOLIDAY UTILITIES
+   ============================================================ */
+function parseDate(s) {
+  const [y,m,d] = s.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function fmtDate(dt) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth()+1).padStart(2,'0');
+  const d = String(dt.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function addDays(dt, n) {
+  const r = new Date(dt);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function nthDayOfMonth(year, month, dow, n) {
+  // nth occurrence of dow (0=Sun..6=Sat) in month (0-indexed)
+  const first = new Date(year, month, 1);
+  let d = (dow - first.getDay() + 7) % 7 + 1;
+  d += (n - 1) * 7;
+  return new Date(year, month, d);
+}
+function lastDayOfMonth(year, month, dow) {
+  const last = new Date(year, month + 1, 0);
+  let d = last.getDate() - ((last.getDay() - dow + 7) % 7);
+  return new Date(year, month, d);
+}
+
+function observedDate(dt) {
+  const dow = dt.getDay();
+  if (dow === 6) return addDays(dt, -1); // Sat -> Fri
+  if (dow === 0) return addDays(dt, 1);  // Sun -> Mon
+  return dt;
+}
+
+function getFederalHolidays(year) {
+  const raw = [
+    new Date(year, 0, 1),                    // New Year
+    nthDayOfMonth(year, 0, 1, 3),            // MLK (3rd Mon Jan)
+    nthDayOfMonth(year, 1, 1, 3),            // Presidents (3rd Mon Feb)
+    lastDayOfMonth(year, 4, 1),              // Memorial (last Mon May)
+    new Date(year, 5, 19),                   // Juneteenth
+    new Date(year, 6, 4),                    // Independence
+    nthDayOfMonth(year, 8, 1, 1),            // Labor (1st Mon Sep)
+    nthDayOfMonth(year, 9, 1, 2),            // Columbus (2nd Mon Oct)
+    new Date(year, 10, 11),                  // Veterans
+    nthDayOfMonth(year, 10, 4, 4),           // Thanksgiving (4th Thu Nov)
+    new Date(year, 11, 25),                  // Christmas
+  ];
+  const holidays = new Set();
+  raw.forEach(h => {
+    const obs = observedDate(h);
+    holidays.add(fmtDate(obs));
+  });
+  return holidays;
+}
+
+function getBridgeDays(holidaySet) {
+  const bridges = new Set();
+  holidaySet.forEach(ds => {
+    const dt = parseDate(ds);
+    const dow = dt.getDay();
+    if (dow === 2) { // Tuesday -> Monday bridge
+      bridges.add(fmtDate(addDays(dt, -1)));
     }
-    btn.closest('tr').remove();
-  }
-
-  // ── API base URL (Cloud Run backend) ────────────────────────────────────────
-  const API = 'http://34.53.232.135';
-
-  // ── Build query string from form ───────────────────────────────────────────
-  function buildQS() {
-    const f = document.getElementById('roster-form');
-    const params = new URLSearchParams();
-    params.append('start', f.querySelector('#start').value);
-    params.append('end', f.querySelector('#end').value);
-    if (f.querySelector('#same_counts').checked) params.append('same_counts', 'on');
-    f.querySelectorAll('input[name="dir_name"]').forEach(n => params.append('dir_name', n.value));
-    f.querySelectorAll('input[name="sdnco_count"]').forEach(n => params.append('sdnco_count', n.value));
-    f.querySelectorAll('input[name="runner_count"]').forEach(n => params.append('runner_count', n.value));
-    const extra = f.querySelector('#extra_holidays').value.trim();
-    if (extra) params.append('extra_holidays', extra);
-    return params.toString();
-  }
-
-  // ── Validation + fetch on submit ───────────────────────────────────────────
-  document.getElementById('roster-form').addEventListener('submit', async function (e) {
-    e.preventDefault();
-
-    // Validate: no blank names
-    let ok = true;
-    document.querySelectorAll('input[name="dir_name"]').forEach(n => {
-      if (!n.value.trim()) ok = false;
-    });
-    if (!ok) { alert('All directorate names must be filled in.'); return; }
-
-    // Validate: end >= start
-    const s = new Date(document.getElementById('start').value);
-    const en = new Date(document.getElementById('end').value);
-    if (en <= s) { alert('End date must be after start date.'); return; }
-
-    document.getElementById('loading').classList.add('active');
-    document.getElementById('submit-btn').disabled = true;
-
-    const qs = buildQS();
-
-    try {
-      const resp = await fetch(API + '/generate?' + qs);
-      if (!resp.ok) throw new Error('Server returned ' + resp.status);
-      const html = await resp.text();
-
-      // Inject Excel download that also uses fetch
-      const excelBtn = `<script>
-        document.querySelectorAll('a.excel-link').forEach(function(a) {
-          a.addEventListener('click', async function(ev) {
-            ev.preventDefault();
-            const r = await fetch(a.href);
-            const b = await r.blob();
-            const url = URL.createObjectURL(b);
-            const dl = document.createElement('a');
-            dl.href = url;
-            dl.download = 'staff_duty.xlsx';
-            dl.click();
-            URL.revokeObjectURL(url);
-          });
-        });
-      <\/script>`;
-
-      // Rewrite Excel links to point at API
-      const patched = html
-        .replace(/href="\/export\/excel/g, 'href="' + API + '/export/excel')
-        .replace('</body>', excelBtn + '</body>');
-
-      document.open();
-      document.write(patched);
-      document.close();
-    } catch (err) {
-      document.getElementById('loading').classList.remove('active');
-      document.getElementById('submit-btn').disabled = false;
-      alert('Failed to generate roster: ' + err.message + '\\n\\nThe solver backend may be unreachable from this network.');
+    if (dow === 4) { // Thursday -> Friday bridge
+      bridges.add(fmtDate(addDays(dt, 1)));
     }
   });
-</script>
+  return bridges;
+}
 
+function buildHolidaySet(startDate, endDate, extraStr) {
+  const s = parseDate(startDate);
+  const e = parseDate(endDate);
+  const years = new Set();
+  for (let y = s.getFullYear(); y <= e.getFullYear(); y++) years.add(y);
+
+  let allHolidays = new Set();
+  years.forEach(y => {
+    getFederalHolidays(y).forEach(h => allHolidays.add(h));
+  });
+
+  // Add extra holidays
+  if (extraStr && extraStr.trim()) {
+    extraStr.split(',').forEach(s => {
+      const t = s.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(t)) allHolidays.add(t);
+    });
+  }
+
+  // Bridge days
+  const bridges = getBridgeDays(allHolidays);
+  bridges.forEach(b => allHolidays.add(b));
+
+  // Filter to range
+  const result = new Set();
+  allHolidays.forEach(h => {
+    if (h >= startDate && h <= endDate) result.add(h);
+  });
+  return result;
+}
+
+/* ============================================================
+   DAY CLASSIFICATION
+   ============================================================ */
+function classifyDay(dateStr, holidaySet) {
+  if (holidaySet.has(dateStr)) return 'HOLIDAY';
+  const dow = parseDate(dateStr).getDay();
+  if (dow === 0 || dow === 6) return 'WEEKEND';
+  return 'WEEKDAY';
+}
+
+function isHardDay(dateStr, holidaySet) {
+  const cls = classifyDay(dateStr, holidaySet);
+  return cls === 'WEEKEND' || cls === 'HOLIDAY';
+}
+
+/* ============================================================
+   GREEDY SOLVER
+   ============================================================ */
+function solveSingleRole(directorates, dates, holidaySet, otherRoleAssignments) {
+  // directorates: [{name, eligible}, ...]
+  // dates: [dateStr, ...]
+  // otherRoleAssignments: {dateStr: dirName} or null
+  const n = dates.length;
+  const H = directorates.reduce((s, d) => s + d.eligible, 0);
+  if (H === 0) return {};
+
+  const hardDates = dates.filter(d => isHardDay(d, holidaySet));
+  const softDates = dates.filter(d => !isHardDay(d, holidaySet));
+  const nHard = hardDates.length;
+
+  // Compute quotas
+  const dirs = directorates.map(d => {
+    const share = d.eligible / H;
+    const totalTarget = share * n;
+    const hardTarget = share * nHard;
+    return {
+      name: d.name,
+      eligible: d.eligible,
+      totalTarget,
+      hardTarget,
+      remainQuota: Math.ceil(totalTarget),
+      remainHard: hardTarget,
+      assignedTotal: 0,
+      assignedHard: 0,
+      assignedSoft: 0,
+    };
+  });
+
+  // Interleave hard and soft days for even distribution
+  const interleaved = [];
+  let hi = 0, si = 0;
+  const hardRatio = nHard / n;
+  for (let i = 0; i < n; i++) {
+    const expectedHard = Math.round((i + 1) * hardRatio);
+    if (hi < hardDates.length && (si >= softDates.length || hi < expectedHard)) {
+      interleaved.push({ date: hardDates[hi], hard: true });
+      hi++;
+    } else if (si < softDates.length) {
+      interleaved.push({ date: softDates[si], hard: false });
+      si++;
+    }
+  }
+
+  const assignments = {};
+  let prevDir = null;
+
+  for (const slot of interleaved) {
+    const dateStr = slot.date;
+    const hard = slot.hard;
+
+    // Filter eligible
+    let candidates = dirs.filter(d => d.remainQuota > 0);
+    if (candidates.length === 0) candidates = [...dirs]; // fallback
+
+    // Cooldown: remove prev day's directorate
+    if (prevDir && candidates.length > 1) {
+      candidates = candidates.filter(d => d.name !== prevDir);
+    }
+
+    // Overlap avoidance: remove other role's assignment for this day
+    if (otherRoleAssignments && otherRoleAssignments[dateStr] && candidates.length > 1) {
+      const filtered = candidates.filter(d => d.name !== otherRoleAssignments[dateStr]);
+      if (filtered.length > 0) candidates = filtered;
+    }
+
+    // Pick best
+    let best;
+    if (hard) {
+      // Most under hard target
+      best = candidates.reduce((a, b) => {
+        const aGap = a.hardTarget - a.assignedHard;
+        const bGap = b.hardTarget - b.assignedHard;
+        if (bGap !== aGap) return bGap > aGap ? b : a;
+        return (b.remainQuota > a.remainQuota) ? b : a;
+      });
+    } else {
+      // Most remaining quota
+      best = candidates.reduce((a, b) => {
+        if (b.remainQuota !== a.remainQuota) return b.remainQuota > a.remainQuota ? b : a;
+        return (b.totalTarget - b.assignedTotal) > (a.totalTarget - a.assignedTotal) ? b : a;
+      });
+    }
+
+    assignments[dateStr] = best.name;
+    best.remainQuota--;
+    best.assignedTotal++;
+    if (hard) {
+      best.assignedHard++;
+    } else {
+      best.assignedSoft++;
+    }
+    prevDir = best.name;
+  }
+
+  // Re-key by actual date order
+  const result = {};
+  dates.forEach(d => { result[d] = assignments[d]; });
+  return { assignments: result, stats: dirs };
+}
+
+function solve(directoratesSDNCO, directoratesRunner, dates, holidaySet) {
+  // Solve SDNCO first
+  const sdncoResult = solveSingleRole(directoratesSDNCO, dates, holidaySet, null);
+  // Solve Runner with SDNCO overlap avoidance
+  const runnerResult = solveSingleRole(directoratesRunner, dates, holidaySet, sdncoResult.assignments);
+  return { sdnco: sdncoResult, runner: runnerResult };
+}
+
+/* ============================================================
+   GINI COEFFICIENT
+   ============================================================ */
+function gini(values) {
+  const n = values.length;
+  const total = values.reduce((a, b) => a + b, 0);
+  if (!n || !total) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  let cumsum = 0;
+  for (let i = 0; i < n; i++) {
+    cumsum += (2 * (i + 1) - n - 1) * sorted[i];
+  }
+  return cumsum / (n * total);
+}
+
+/* ============================================================
+   GENERATE
+   ============================================================ */
+function generate() {
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  const sameCount = document.getElementById('sameCountToggle').checked;
+  const extraHolidays = document.getElementById('extraHolidays').value;
+
+  if (!startDate || !endDate || startDate > endDate) {
+    alert('Please enter a valid date range.');
+    return;
+  }
+
+  // Read directorates
+  const rows = document.querySelectorAll('#dirBody tr');
+  const dirsSDNCO = [];
+  const dirsRunner = [];
+  let valid = true;
+  rows.forEach(tr => {
+    const name = tr.querySelector('.dir-name').value.trim();
+    const sdnco = parseInt(tr.querySelector('.dir-sdnco').value) || 0;
+    let runner = sameCount ? sdnco : (parseInt(tr.querySelector('.dir-runner').value) || 0);
+    if (!name || sdnco < 1 || runner < 1) { valid = false; return; }
+    dirsSDNCO.push({ name, eligible: sdnco });
+    dirsRunner.push({ name, eligible: runner });
+  });
+
+  if (!valid || dirsSDNCO.length === 0) {
+    alert('Please fill in all directorate fields with valid values (minimum 1 eligible).');
+    return;
+  }
+
+  // Show loading
+  const overlay = document.getElementById('loadingOverlay');
+  overlay.classList.add('active');
+
+  setTimeout(() => {
+    try {
+      // Build date list
+      const dates = [];
+      let cur = parseDate(startDate);
+      const end = parseDate(endDate);
+      while (cur <= end) {
+        dates.push(fmtDate(cur));
+        cur = addDays(cur, 1);
+      }
+
+      const holidaySet = buildHolidaySet(startDate, endDate, extraHolidays);
+      const result = solve(dirsSDNCO, dirsRunner, dates, holidaySet);
+
+      renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, startDate, endDate);
+    } catch (e) {
+      alert('Error generating roster: ' + e.message);
+      console.error(e);
+    } finally {
+      overlay.classList.remove('active');
+    }
+  }, 80);
+}
+
+/* ============================================================
+   RENDER DASHBOARD
+   ============================================================ */
+function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, startDate, endDate) {
+  document.getElementById('pageBody').className = 'dash-page';
+  document.getElementById('formPage').style.display = 'none';
+  const dash = document.getElementById('dashPage');
+  dash.style.display = 'block';
+
+  const nDays = dates.length;
+  const nWeekdays = dates.filter(d => classifyDay(d, holidaySet) === 'WEEKDAY').length;
+  const nHard = nDays - nWeekdays;
+  const nDirs = dirsSDNCO.length;
+
+  // Build color map
+  const colorMap = {};
+  dirsSDNCO.forEach((d, i) => { colorMap[d.name] = DIR_COLORS[i % DIR_COLORS.length]; });
+
+  // Quarter label
+  const sd = parseDate(startDate);
+  const ed = parseDate(endDate);
+  const qLabel = `${MONTH_NAMES[sd.getMonth()]} ${sd.getDate()} - ${MONTH_NAMES[ed.getMonth()]} ${ed.getDate()}, ${ed.getFullYear()}`;
+  const genDate = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  let html = '';
+
+  // UNCLAS banner + header
+  html += `<div class="unclas-banner">UNCLASSIFIED</div>`;
+  html += `<div class="dash-header">
+    <div class="crest"><svg width="60" height="79" viewBox="0 0 246.08 322.7" xmlns="http://www.w3.org/2000/svg">
+<path d="m123.04 1.2002c-66.774-0.10337-121.84 36.129-121.84 36.129s-0.41936 102.81 31.635 167.86c38.542 78.221 87.955 114.53 90.014 116.02v0.28711s0.17836-0.13656 0.18945-0.14453c0.0111 8e-3 0.18945 0.14453 0.18945 0.14453v-0.28711c2.0583-1.491 51.471-37.799 90.014-116.02 32.054-65.053 31.635-167.86 31.635-167.86s-55.064-36.232-121.84-36.129z" fill="#171695"/>
+<path d="m117.65 200.15c0.22276-24.163 0.72429-48.331 0.76474-72.491-3.4093-2.716-6.1771-7.05-5.7856-11.546 1.9789-5.9597 1.7443-13.803-3.9582-17.636 1.8433 5.0171 0.26645 10.325-2.0321 14.893-3.226 6.8124-3.2514 15.826 2.3417 21.48 3.7657 3.5442 4.8942 8.9284 4.1338 13.888-0.90701-4.1592-3.1854-8.269-7.0592-10.453-2.6858-1.4232-6.0935-2.2012-7.68-5.4303-1.8455-4.6228 0.57719-10.883-3.664-14.655-2.1153-2.7543-0.60992 2.8488-1.4523 6.005-2.7227 6.9975-2.736 16.688 3.9518 21.421 7.0203 3.051 11.93 10.347 14.244 17.644 0.64053 2.8573 3.6353 9.829-1.026 5.0949-2.0867-1.4452-4.7634-1.5364-7.2033-2.196-2.2111-0.97619-4.6484-2.1535-5.8647-4.6307-1.2525-6.7559-3.6439 3.0959-2.5354 5.7975 0.75012 3.2858 3.5415 5.8686 6.5368 6.7892 5.3657 2.4602 10.013 7.6601 11.416 13.658 1.4895 3.9304 0.0343 1.8767-2.3495 1.4882-4.1636-0.67852-8.7009-1.1125-8.6626-6.3935-1.5588 2.6439-0.35735 9.9462 3.2674 12.781 4.1804 3.9253 8.5014 8.6678 7.7912 14.848-1.3426-1.0678-3.4449-6.4157-6.6622-8.0086-2.5913-1.283-5.5194-1.6909-8.4267-1.92-4.2628-0.33596-5.5236-7.0758-6.278-8.16-2.1353 6.2842-1.7474 14.361 4.1447 18.4 1.8745 1.3902 3.8662 1.9662 5.76 3.2 6.1234 3.616 12.541 9.1598 12.866 16.876-2.1926-1.5176-4.359-1.9963-6.8931-2.5488-5.1244-1.1616-6.3828-3.2136-7.6173-5.6054-1.4068 3.7385-1.4076 9.087 2.604 11.332 2.3092 1.2364 5.0499 1.6519 7.36 2.7733 3.2903 1.5294 6.17 4.5116 7.5368 7.9542 0.16138-14.883 0.24569-29.766 0.43081-44.648zm11.787 44.36c2.0528-3.4325 5.9175-6.1306 9.2582-7.6665 3.1644-1.7088 5.4601-5.2564 6.4126-8.8633 0.9782-2.5496 3.1406-4.6863 5.5341-5.5192-1.4595-2.3635-7.7145-1.0161-8.9744 2.2226-1.2402 2.1941-2.0186 6.2395-4.8538 6.6002-1.8386-4.7818 1.8391-9.3228 5.7216-11.72 4.751-2.7173 5.9403-8.4822 5.6681-13.561-0.47323-2.6628 3.5956-7.4376-0.97477-4.7862-3.3806 2.1948-3.9949 6.2219-6.4596 8.96-1.7323 1.2846-6.6189 5.1661-4.9206 0.2601-0.15386-6.2165 6.2318-9.3808 7.6425-15.009 2.0182-5.3841 1.3992-12.149 6.3626-16.003 1.1581-1.3309 3.7292-1.4513 4.4717-2.4653-2.6409-0.81956-5.6513-1.9782-8.4833-0.916-4.0135 0.9504-5.8123 5.6086-6.8508 9.3521-0.84516 2.3388-3.826 8.1323-5.3123 6.7794-0.73094-5.4087 0.42272-11.13 4.3828-15.052 3.1556-3.1139 7.6264-5.4018 7.7325-10.478 0.85585-5.8424 0.24119-12.857 5.1679-17.054 1.2324-1.6278 4.8392-1.7365 5.3333-2.56-2.3741-1.4543-5.6625-2.2649-8.5333-1.28-4.7492 1.533-8.2315 6.7727-8.8639 11.774-0.15 2.4524-3.3149 9.591-4.6563 7.583 0.0931-7.8592 0.74192-16.675 6.5869-22.549 3.647-4.2573 4.6802-11.032 2.1333-16.008-3.2221-5.4172-2.8943-12.673-0.10357-18.353 0.33896-1.8011-3.7282 0.34225-4.8465 1.1494-4.6125 3.5553-2.6036 9.7857-2.6381 14.684-0.26023 4.4475-2.3158 9.4809-6.7049 11.115-1.8892 0.32158-0.70904 2.7968-1.0036 4.3335 0.47611 35.043 0.25317 70.091 0.97152 105.13 0.0771 2.5847 0.077 1.0616 0.80023-0.0997z" fill="#ba122b"/>
+<path d="m122.87 85.927-0.17773 0.3125-3.8711 8.1992-1.6973 152.51c3.8015 0.6784 7.7755 0.7862 11.584 0.14844l-1.3906-152.44z" fill="#fff"/>
+<path d="m89.126 237.58c-1.8717 0.0334-3.9322 0.58716-5.0742 1.4277-1.3664 1.0057-2.508 3.7851-1 4.5625 20.475 10.556 33.701 9.6191 33.701 9.6191l-0.95117 33.131s0.27688 3.1109 6.25 3.25c8.623 0.2008 8.125-3.875 8.125-3.875l-0.64844-32.506c2.296 0.0577 14.762 0.0804 33.221-9.4356 1.508-0.77743 0.36639-3.5568-1-4.5625-1.8272-1.3449-6.0058-1.9571-8-0.875-13.247 7.1882-15.999 7.6085-25.029 9.2227-4e-3-0.0259 9e-5-8.9e-4-4e-3-0.0274-3.8141 0.63948-7.7946 0.53021-11.602-0.15039-9.0588-1.6195-11.798-2.0308-25.062-9.2285-0.74781-0.40578-1.8028-0.57276-2.9258-0.55274z" fill="#ffc61d"/>
+<path d="m124.16 13.198c-52.79-0.68772-108.32 30.463-109.89 31.35 1.0035 14.131 1.8484 28.233 3.043 42.281 6.1467-5.5066 14.782-12.539 25.912-19.244 19.397-11.685 46.408-22.446 80.895-22.699h0.043c34.486 0.25299 61.498 11.014 80.895 22.699 10.35 6.2354 18.505 12.731 24.551 18.045 1.0598-13.763 2.0064-28.18 2.6152-40.85-1.5242-0.87987-53.825-30.875-108.06-31.582z" fill="#8c99a2"/>
+<path d="m124.12 44.886c-34.486 0.25299-61.498 11.014-80.895 22.699-11.132 6.7062-19.761 13.734-25.912 19.244 0.21312 2.5063 0.44094 5.0111 0.67969 7.5137 6.0248-5.6655 15.323-13.783 28.328-21.617 18.681-11.254 44.567-21.591 77.82-21.84 33.253 0.24842 59.139 10.585 77.82 21.84 12.097 7.2878 21.008 14.837 27.049 20.42 0.20304-2.4866 0.40142-4.9768 0.59766-7.5254-6.0497-5.3122-14.226-11.815-24.551-18.035-19.397-11.685-46.408-22.446-80.895-22.699h-0.0215z" fill="#ba122b"/>
+<path d="m124.11 62.792v2e-3c-56.492 0.0247-91.747 32.586-104.46 46.791 0.32892 2.6537 0.67816 5.3047 1.0566 7.9531 7.5488-9.4708 42.508-48.73 103.44-48.744 59.368 0.01351 94.021 37.235 102.74 47.906 0.26319-2.6049 0.52829-5.3038 0.79492-8.1777-13.495-14.715-48.42-45.704-103.51-45.729v-2e-3z" fill="#144d2a"/>
+<path d="m124.11 56.761v2e-3c-56.714 0.0244-93.28 32.374-105.36 44.945 0.28465 2.6373 0.57198 5.2738 0.89844 7.9062 4.9499-5.8673 41.751-46.838 104.49-46.852 59.67 0.01333 95.878 37.077 103.54 45.754 0.23826-2.5683 0.47617-5.2212 0.71289-7.9551-13.065-13.255-49.088-43.775-104.22-43.799v-2e-3z" fill="#fcc916"/>
+<path d="m124.11 50.886v0.0039c-54.122-0.06546-90.709 28.355-106.13 43.201 0.24278 2.5552 0.51159 5.1072 0.78711 7.6582 11.989-12.516 48.534-44.948 105.38-44.861 55.264-0.0845 91.263 30.505 104.25 43.713 0.21785-2.5151 0.43124-5.1147 0.64453-7.7324-16.122-15.131-52.202-42.042-104.86-41.979v-0.0039z" fill="#fa9e0d"/>
+</svg></div>
+    <h1>United States Army Europe and Africa</h1>
+    <h2>HHBn Staff Duty Roster</h2>
+    <div class="sub">${qLabel} &middot; Generated ${genDate}</div>
+  </div>`;
+
+  // Sticky nav
+  html += `<div class="sticky-nav">
+    <a href="#" onclick="location.reload(); return false;">&larr; Configure New Roster</a>
+    <span>USAREUR-AF &middot; HHBn STAFF DUTY &middot; UNCLASSIFIED</span>
+  </div>`;
+
+  html += `<div class="dash-container">`;
+
+  // Stat cards
+  html += `<div class="stat-row">
+    <div class="stat-card"><div class="val">${nDays}</div><div class="lbl">Total Days</div></div>
+    <div class="stat-card"><div class="val">${nWeekdays}</div><div class="lbl">Weekdays</div></div>
+    <div class="stat-card"><div class="val">${nHard}</div><div class="lbl">Wknd/Holiday</div></div>
+    <div class="stat-card"><div class="val">${nDirs}</div><div class="lbl">Directorates</div></div>
+  </div>`;
+
+  // Legend
+  html += `<div class="legend-box">`;
+  dirsSDNCO.forEach(d => {
+    html += `<div class="legend-item"><div class="legend-swatch" style="background:#${colorMap[d.name]}"></div>${d.name}</div>`;
+  });
+  html += `<div class="legend-sep"></div>`;
+  html += `<div class="legend-item"><div class="legend-swatch" style="background:#bfdbfe"></div>Weekend</div>`;
+  html += `<div class="legend-item"><div class="legend-swatch" style="background:#fed7aa"></div>Holiday</div>`;
+  html += `</div>`;
+
+  // Summary tables
+  html += `<div class="side2">`;
+  html += renderSummaryTable('SDNCO Summary', result.sdnco, dirsSDNCO, nDays, dates, holidaySet, colorMap);
+  html += renderSummaryTable('SD Runner Summary', result.runner, dirsRunner, nDays, dates, holidaySet, colorMap);
+  html += `</div>`;
+
+  // Fairness report
+  html += `<div class="side2">`;
+  html += renderFairnessReport('SDNCO Fairness / Equity', result.sdnco, dirsSDNCO, nDays, dates, holidaySet, colorMap);
+  html += renderFairnessReport('SD Runner Fairness / Equity', result.runner, dirsRunner, nDays, dates, holidaySet, colorMap);
+  html += `</div>`;
+
+  // Calendar
+  html += renderCalendar(result, dates, holidaySet, colorMap);
+
+  html += `</div>`; // dash-container
+  html += `<div class="unclas-banner">UNCLASSIFIED</div>`;
+
+  dash.innerHTML = html;
+}
+
+function renderSummaryTable(title, roleResult, dirs, nDays, dates, holidaySet, colorMap) {
+  const stats = roleResult.stats;
+  const assignments = roleResult.assignments;
+  const H = dirs.reduce((s, d) => s + d.eligible, 0);
+  const maxAssigned = Math.max(...stats.map(s => s.assignedTotal), 1);
+
+  let html = `<div><div class="dtable-wrap"><div class="dtable-hdr">${title}</div>`;
+  html += `<table class="dtable"><thead><tr>
+    <th>Directorate</th><th>Eligible</th><th>Target</th><th>Actual Days</th><th>Weekday</th><th>Weekend</th><th>Holiday</th><th>Hard Days</th>
+  </tr></thead><tbody>`;
+
+  stats.forEach(s => {
+    const target = (s.totalTarget).toFixed(1);
+    const pct = Math.round((s.assignedTotal / maxAssigned) * 100);
+    const color = colorMap[s.name] || '666';
+
+    // Count weekend vs holiday
+    let wkend = 0, hol = 0;
+    dates.forEach(d => {
+      if (assignments[d] === s.name) {
+        const cls = classifyDay(d, holidaySet);
+        if (cls === 'WEEKEND') wkend++;
+        if (cls === 'HOLIDAY') hol++;
+      }
+    });
+
+    html += `<tr>
+      <td><span class="chip" style="background:#${color}">${s.name}</span></td>
+      <td>${s.eligible}</td>
+      <td>${target}</td>
+      <td><div class="bar-cell"><span class="bar-val">${s.assignedTotal}</span><div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:#${color}"></div></div></div></td>
+      <td>${s.assignedSoft}</td>
+      <td>${wkend}</td>
+      <td>${hol}</td>
+      <td>${s.assignedHard}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+
+function renderFairnessReport(title, roleResult, dirs, nDays, dates, holidaySet, colorMap) {
+  const stats = roleResult.stats;
+  const H = dirs.reduce((s, d) => s + d.eligible, 0);
+  const nHard = dates.filter(d => isHardDay(d, holidaySet)).length;
+
+  // Compute deviations
+  let maxDev = 0;
+  let maxHardDev = 0;
+  const rows = stats.map(s => {
+    const fairTotal = (s.eligible / H) * nDays;
+    const fairHard = (s.eligible / H) * nHard;
+    const devTotal = Math.abs(s.assignedTotal - fairTotal);
+    const devHard = Math.abs(s.assignedHard - fairHard);
+    if (devTotal > maxDev) maxDev = devTotal;
+    if (devHard > maxHardDev) maxHardDev = devHard;
+    return { ...s, fairTotal, fairHard, devTotal, devHard };
+  });
+
+  // Verdict
+  let verdictClass, verdictText;
+  if (maxDev <= 1.0 && maxHardDev <= 1.0) {
+    verdictClass = 'verdict-green';
+    verdictText = 'EXCELLENT — All directorates within &plusmn;1 day of proportional target.';
+  } else if (maxDev <= 2.0 && maxHardDev <= 2.0) {
+    verdictClass = 'verdict-yellow';
+    verdictText = 'ACCEPTABLE — Assignments within &plusmn;2 days of target. Minor variance due to constraints.';
+  } else {
+    verdictClass = 'verdict-red';
+    verdictText = 'REVIEW NEEDED — Some directorates deviate more than &plusmn;2 days from target.';
+  }
+
+  // Gini
+  const giniVal = gini(rows.map(r => r.assignedTotal));
+
+  let html = `<div><div class="dtable-wrap"><div class="dtable-hdr">${title}</div><div style="padding:16px;">`;
+  html += `<div class="verdict-banner ${verdictClass}">${verdictText}</div>`;
+  html += `<p style="font-size:0.85rem;color:#475569;margin-bottom:12px;">Proportional fairness ensures each directorate's duty count matches its share of eligible soldiers.</p>`;
+
+  html += `<table class="dtable"><thead><tr>
+    <th>Directorate</th><th>Eligible</th><th>Fair Share Total</th><th>Actual Total</th><th>Fair Share Hard</th><th>Actual Hard</th>
+  </tr></thead><tbody>`;
+
+  rows.forEach(r => {
+    const totalPill = pillFor(r.assignedTotal, r.fairTotal);
+    const hardPill = pillFor(r.assignedHard, r.fairHard);
+    html += `<tr>
+      <td><span class="chip" style="background:#${colorMap[r.name] || '666'}">${r.name}</span></td>
+      <td>${r.eligible}</td>
+      <td>${r.fairTotal.toFixed(1)}</td>
+      <td>${totalPill}</td>
+      <td>${r.fairHard.toFixed(1)}</td>
+      <td>${hardPill}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table>`;
+  html += `<div class="gini-note">Gini coefficient: ${giniVal.toFixed(4)} (0 = perfect equality, 1 = maximum inequality)</div>`;
+  html += `</div></div></div>`;
+  return html;
+}
+
+function pillFor(actual, target) {
+  const dev = Math.abs(actual - target);
+  let cls = 'pill-green';
+  if (dev > 2) cls = 'pill-red';
+  else if (dev > 1) cls = 'pill-yellow';
+  return `<span class="pill ${cls}">${actual}</span>`;
+}
+
+function renderCalendar(result, dates, holidaySet, colorMap) {
+  let html = `<div class="dtable-wrap"><div class="dtable-hdr">Daily Roster Calendar</div>`;
+  html += `<div class="cal-table-wrap"><table class="dtable"><thead><tr>
+    <th>Date</th><th>Day</th><th>Type</th><th>SDNCO</th><th>SD Runner</th>
+  </tr></thead><tbody>`;
+
+  let prevMonth = -1;
+  dates.forEach(ds => {
+    const dt = parseDate(ds);
+    const month = dt.getMonth();
+    if (month !== prevMonth) {
+      prevMonth = month;
+      html += `<tr class="cal-month-divider"><td colspan="5">${MONTH_NAMES[month]} ${dt.getFullYear()}</td></tr>`;
+    }
+
+    const cls = classifyDay(ds, holidaySet);
+    let rowClass = '';
+    if (cls === 'WEEKEND') rowClass = 'cal-row-weekend';
+    if (cls === 'HOLIDAY') rowClass = 'cal-row-holiday';
+
+    const dayName = DAY_NAMES[dt.getDay()];
+    let badge = '<span class="badge-weekday">Weekday</span>';
+    if (cls === 'WEEKEND') badge = '<span class="badge-weekend">Weekend</span>';
+    if (cls === 'HOLIDAY') badge = '<span class="badge-holiday">Holiday</span>';
+
+    const sdncoDir = result.sdnco.assignments[ds];
+    const runnerDir = result.runner.assignments[ds];
+    const sdncoChip = `<span class="chip" style="background:#${colorMap[sdncoDir] || '666'}">${sdncoDir}</span>`;
+    const runnerChip = `<span class="chip" style="background:#${colorMap[runnerDir] || '666'}">${runnerDir}</span>`;
+
+    html += `<tr class="${rowClass}">
+      <td>${ds}</td><td>${dayName}</td><td>${badge}</td><td>${sdncoChip}</td><td>${runnerChip}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+  return html;
+}
+</script>
 </body>
 </html>
