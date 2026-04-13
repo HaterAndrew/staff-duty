@@ -513,7 +513,7 @@ input:focus { outline: none; border-color: var(--gold); }
     </div>
     <h1>United States Army Europe and Africa</h1>
     <h2>Staff Duty Roster Generator</h2>
-    <div class="sub">HHBn &middot; PROPORTIONAL FAIRNESS SOLVER &middot; GREEDY</div>
+    <div class="sub">HHBn &middot; PROPORTIONAL FAIRNESS SOLVER &middot; ILP</div>
   </div>
 
   <div class="form-container">
@@ -576,6 +576,7 @@ input:focus { outline: none; border-color: var(--gold); }
 <!-- ===== DASHBOARD (generated dynamically) ===== -->
 <div id="dashPage" style="display:none;"></div>
 
+<script src="highs.js"></script>
 <script>
 /* ============================================================
    CONSTANTS & GLOBALS
@@ -601,6 +602,279 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 
 /* Global store for Excel export */
 let lastResult = null;
+let solverMethod = 'Greedy Fallback';
+
+/* ============================================================
+   HiGHS ILP SOLVER
+   ============================================================ */
+let highsSolver = null;
+
+async function initHiGHS() {
+  if (highsSolver) return highsSolver;
+  highsSolver = await Module({
+    locateFile: (file) => file
+  });
+  return highsSolver;
+}
+
+function sanitizeName(name) {
+  return name.replace(/[^A-Za-z0-9]/g, '_');
+}
+
+function buildLPString(dirsSDNCO, dirsRunner, dates, holidaySet) {
+  const nDays = dates.length;
+  const H_S = dirsSDNCO.reduce((s, d) => s + d.eligible, 0);
+  const H_R = dirsRunner.reduce((s, d) => s + d.eligible, 0);
+
+  const hardIndices = [];
+  const softIndices = [];
+  dates.forEach((ds, i) => {
+    if (isHardDay(ds, holidaySet)) hardIndices.push(i);
+    else softIndices.push(i);
+  });
+  const nHard = hardIndices.length;
+
+  // Build month and half-month groupings
+  const monthMap = {}; // key: "YYYY_M" -> [dayIndices]
+  dates.forEach((ds, i) => {
+    const dt = parseDate(ds);
+    const key = `${dt.getFullYear()}_${dt.getMonth()}`;
+    if (!monthMap[key]) monthMap[key] = [];
+    monthMap[key].push(i);
+  });
+
+  const halfMonthMap = {}; // key: "YYYY_M_H" -> [dayIndices]
+  dates.forEach((ds, i) => {
+    const dt = parseDate(ds);
+    const half = dt.getDate() <= 15 ? 0 : 1;
+    const key = `${dt.getFullYear()}_${dt.getMonth()}_${half}`;
+    if (!halfMonthMap[key]) halfMonthMap[key] = [];
+    halfMonthMap[key].push(i);
+  });
+
+  const MONTHLY_PENALTY = 1.5;
+  const SPACING_PENALTY = 0.6;
+  const OVERLAP_PENALTY = 3.0;
+
+  const objTerms = [];
+  const constraints = [];
+  const binaryVars = [];
+  const continuousVars = [];
+  let cIdx = 0;
+
+  const allDirNames = new Set();
+  dirsSDNCO.forEach(d => allDirNames.add(d.name));
+  dirsRunner.forEach(d => allDirNames.add(d.name));
+
+  // Helper to process one role
+  function addRoleConstraints(dirs, H, rolePrefix) {
+    const dirNames = dirs.map(d => sanitizeName(d.name));
+
+    // Create binary vars xR_dir_day
+    dirs.forEach((d, di) => {
+      const dn = sanitizeName(d.name);
+      for (let t = 0; t < nDays; t++) {
+        binaryVars.push(`${rolePrefix}_${dn}_${t}`);
+      }
+    });
+
+    // C1: Coverage — for each day, sum of all dirs = 1
+    for (let t = 0; t < nDays; t++) {
+      const terms = dirs.map(d => `${rolePrefix}_${sanitizeName(d.name)}_${t}`).join(' + ');
+      constraints.push(`c${cIdx++}: ${terms} = 1`);
+    }
+
+    // C2: Total quota — floor(quota) <= sum <= ceil(quota)
+    dirs.forEach((d, di) => {
+      const dn = sanitizeName(d.name);
+      const quota = (d.eligible / H) * nDays;
+      const lo = Math.floor(quota);
+      const hi = Math.ceil(quota);
+      const terms = [];
+      for (let t = 0; t < nDays; t++) terms.push(`${rolePrefix}_${dn}_${t}`);
+      const sumExpr = terms.join(' + ');
+      constraints.push(`c${cIdx++}: ${sumExpr} >= ${lo}`);
+      constraints.push(`c${cIdx++}: ${sumExpr} <= ${hi}`);
+    });
+
+    // C3: Hard-day deviation (soft)
+    dirs.forEach((d, di) => {
+      const dn = sanitizeName(d.name);
+      const hardTarget = (d.eligible / H) * nHard;
+      const overVar = `over${rolePrefix}_${dn}`;
+      const underVar = `under${rolePrefix}_${dn}`;
+      continuousVars.push(overVar);
+      continuousVars.push(underVar);
+      objTerms.push(overVar);
+      objTerms.push(underVar);
+
+      if (hardIndices.length > 0) {
+        const hardTerms = hardIndices.map(t => `${rolePrefix}_${dn}_${t}`).join(' + ');
+        // sum_hard - hardTarget <= over  =>  sum_hard - over <= hardTarget
+        constraints.push(`c${cIdx++}: ${hardTerms} - ${overVar} <= ${hardTarget}`);
+        // hardTarget - sum_hard <= under  =>  sum_hard + under >= hardTarget  =>  -sum_hard - under <= -hardTarget
+        constraints.push(`c${cIdx++}: - ${hardTerms} - ${underVar} <= ${-hardTarget}`);
+      }
+    });
+
+    // C4: Cooldown — no consecutive days for same directorate
+    dirs.forEach((d, di) => {
+      const dn = sanitizeName(d.name);
+      for (let t = 0; t < nDays - 1; t++) {
+        constraints.push(`c${cIdx++}: ${rolePrefix}_${dn}_${t} + ${rolePrefix}_${dn}_${t + 1} <= 1`);
+      }
+    });
+
+    // C5: Monthly spread (soft)
+    Object.keys(monthMap).forEach(mk => {
+      const monthDays = monthMap[mk];
+      dirs.forEach((d, di) => {
+        const dn = sanitizeName(d.name);
+        const monthlyTarget = ((d.eligible / H) * nDays) * (monthDays.length / nDays);
+        const moOver = `moOver${rolePrefix}_${dn}_${mk}`;
+        const moUnder = `moUnder${rolePrefix}_${dn}_${mk}`;
+        continuousVars.push(moOver);
+        continuousVars.push(moUnder);
+        objTerms.push(`${MONTHLY_PENALTY} ${moOver}`);
+        objTerms.push(`${MONTHLY_PENALTY} ${moUnder}`);
+
+        const terms = monthDays.map(t => `${rolePrefix}_${dn}_${t}`).join(' + ');
+        constraints.push(`c${cIdx++}: ${terms} - ${moOver} <= ${monthlyTarget}`);
+        constraints.push(`c${cIdx++}: - ${terms} - ${moUnder} <= ${-monthlyTarget}`);
+      });
+    });
+
+    // C5b: Half-month spacing (soft)
+    Object.keys(halfMonthMap).forEach(hk => {
+      const halfDays = halfMonthMap[hk];
+      dirs.forEach((d, di) => {
+        const dn = sanitizeName(d.name);
+        const halfTarget = ((d.eligible / H) * nDays) * (halfDays.length / nDays);
+        const ho = `ho${rolePrefix}_${dn}_${hk}`;
+        const hu = `hu${rolePrefix}_${dn}_${hk}`;
+        continuousVars.push(ho);
+        continuousVars.push(hu);
+        objTerms.push(`${SPACING_PENALTY} ${ho}`);
+        objTerms.push(`${SPACING_PENALTY} ${hu}`);
+
+        const terms = halfDays.map(t => `${rolePrefix}_${dn}_${t}`).join(' + ');
+        constraints.push(`c${cIdx++}: ${terms} - ${ho} <= ${halfTarget}`);
+        constraints.push(`c${cIdx++}: - ${terms} - ${hu} <= ${-halfTarget}`);
+      });
+    });
+  }
+
+  addRoleConstraints(dirsSDNCO, H_S, 'xS');
+  addRoleConstraints(dirsRunner, H_R, 'xR');
+
+  // C6: Same-day overlap (soft) — penalize same directorate on same day for both roles
+  // Only for directorates that appear in both SDNCO and Runner
+  const sdncoNames = new Set(dirsSDNCO.map(d => d.name));
+  const runnerNames = new Set(dirsRunner.map(d => d.name));
+  const commonDirs = [...sdncoNames].filter(n => runnerNames.has(n));
+
+  commonDirs.forEach(name => {
+    const dn = sanitizeName(name);
+    for (let t = 0; t < nDays; t++) {
+      const olapVar = `olap_${dn}_${t}`;
+      binaryVars.push(olapVar);
+      objTerms.push(`${OVERLAP_PENALTY} ${olapVar}`);
+      constraints.push(`c${cIdx++}: xS_${dn}_${t} + xR_${dn}_${t} - ${olapVar} <= 1`);
+    }
+  });
+
+  // Build LP string
+  let lp = 'Minimize\n obj: ';
+  lp += objTerms.join(' + ');
+  lp += '\nSubject To\n';
+  lp += constraints.join('\n') + '\n';
+
+  // Bounds for continuous vars
+  lp += 'Bounds\n';
+  continuousVars.forEach(v => {
+    lp += ` 0 <= ${v}\n`;
+  });
+
+  // Binary section
+  lp += 'Binary\n';
+  lp += ' ' + binaryVars.join(' ') + '\n';
+
+  lp += 'End\n';
+  return lp;
+}
+
+function extractILPResults(solution, dirsSDNCO, dirsRunner, dates, holidaySet) {
+  const nDays = dates.length;
+  const nHard = dates.filter(d => isHardDay(d, holidaySet)).length;
+  const H_S = dirsSDNCO.reduce((s, d) => s + d.eligible, 0);
+  const H_R = dirsRunner.reduce((s, d) => s + d.eligible, 0);
+
+  function extractRole(dirs, H, rolePrefix) {
+    const assignments = {};
+    const stats = dirs.map(d => {
+      const share = d.eligible / H;
+      return {
+        name: d.name,
+        eligible: d.eligible,
+        totalTarget: share * nDays,
+        hardTarget: share * nHard,
+        remainQuota: 0,
+        remainHard: 0,
+        assignedTotal: 0,
+        assignedHard: 0,
+        assignedSoft: 0,
+      };
+    });
+
+    dates.forEach((ds, t) => {
+      for (let di = 0; di < dirs.length; di++) {
+        const dn = sanitizeName(dirs[di].name);
+        const varName = `${rolePrefix}_${dn}_${t}`;
+        const val = solution.Columns[varName]?.Primal || 0;
+        if (val > 0.5) {
+          assignments[ds] = dirs[di].name;
+          stats[di].assignedTotal++;
+          if (isHardDay(ds, holidaySet)) {
+            stats[di].assignedHard++;
+          } else {
+            stats[di].assignedSoft++;
+          }
+          break;
+        }
+      }
+    });
+
+    return { assignments, stats };
+  }
+
+  return {
+    sdnco: extractRole(dirsSDNCO, H_S, 'xS'),
+    runner: extractRole(dirsRunner, H_R, 'xR'),
+  };
+}
+
+async function solveILP(dirsSDNCO, dirsRunner, dates, holidaySet) {
+  try {
+    const highs = await initHiGHS();
+    const lpString = buildLPString(dirsSDNCO, dirsRunner, dates, holidaySet);
+    console.log('LP problem size:', lpString.length, 'chars');
+    const solution = highs.solve(lpString, { time_limit: 120 });
+    console.log('HiGHS status:', solution.Status);
+
+    if (solution.Status === 'Optimal') {
+      solverMethod = 'ILP Optimal';
+      return extractILPResults(solution, dirsSDNCO, dirsRunner, dates, holidaySet);
+    } else {
+      console.warn('HiGHS returned non-optimal status:', solution.Status, '— falling back to greedy');
+      solverMethod = 'Greedy Fallback';
+      return null;
+    }
+  } catch (e) {
+    console.error('HiGHS failed:', e, '— falling back to greedy');
+    solverMethod = 'Greedy Fallback';
+    return null;
+  }
+}
 
 /* ============================================================
    INIT FORM
@@ -846,7 +1120,13 @@ function solveSingleRole(directorates, dates, holidaySet, otherRoleAssignments) 
   return { assignments: result, stats: dirs };
 }
 
-function solve(directoratesSDNCO, directoratesRunner, dates, holidaySet) {
+async function solve(directoratesSDNCO, directoratesRunner, dates, holidaySet) {
+  // Try ILP first
+  const ilpResult = await solveILP(directoratesSDNCO, directoratesRunner, dates, holidaySet);
+  if (ilpResult) return ilpResult;
+
+  // Greedy fallback
+  solverMethod = 'Greedy Fallback';
   const sdncoResult = solveSingleRole(directoratesSDNCO, dates, holidaySet, null);
   const runnerResult = solveSingleRole(directoratesRunner, dates, holidaySet, sdncoResult.assignments);
   return { sdnco: sdncoResult, runner: runnerResult };
@@ -957,7 +1237,7 @@ function exportExcel() {
 /* ============================================================
    GENERATE
    ============================================================ */
-function generate() {
+async function generate() {
   const startDate = document.getElementById('startDate').value;
   const endDate = document.getElementById('endDate').value;
   const sameCount = document.getElementById('sameCountToggle').checked;
@@ -989,30 +1269,31 @@ function generate() {
   const overlay = document.getElementById('loadingOverlay');
   overlay.classList.add('active');
 
-  setTimeout(() => {
-    try {
-      const dates = [];
-      let cur = parseDate(startDate);
-      const end = parseDate(endDate);
-      while (cur <= end) {
-        dates.push(fmtDate(cur));
-        cur = addDays(cur, 1);
-      }
+  // Use requestAnimationFrame + setTimeout to let the overlay render before async work
+  await new Promise(r => setTimeout(r, 80));
 
-      const holidaySet = buildHolidaySet(startDate, endDate, extraHolidays);
-      const result = solve(dirsSDNCO, dirsRunner, dates, holidaySet);
-
-      // Store globally for Excel export
-      lastResult = { result, dirsSDNCO, dirsRunner, dates, holidaySet, startDate, endDate };
-
-      renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, startDate, endDate);
-    } catch (e) {
-      alert('Error generating roster: ' + e.message);
-      console.error(e);
-    } finally {
-      overlay.classList.remove('active');
+  try {
+    const dates = [];
+    let cur = parseDate(startDate);
+    const end = parseDate(endDate);
+    while (cur <= end) {
+      dates.push(fmtDate(cur));
+      cur = addDays(cur, 1);
     }
-  }, 80);
+
+    const holidaySet = buildHolidaySet(startDate, endDate, extraHolidays);
+    const result = await solve(dirsSDNCO, dirsRunner, dates, holidaySet);
+
+    // Store globally for Excel export
+    lastResult = { result, dirsSDNCO, dirsRunner, dates, holidaySet, startDate, endDate };
+
+    renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, startDate, endDate);
+  } catch (e) {
+    alert('Error generating roster: ' + e.message);
+    console.error(e);
+  } finally {
+    overlay.classList.remove('active');
+  }
 }
 
 /* ============================================================
@@ -1065,7 +1346,7 @@ function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, start
     <div class="header-center">
       <h1>United States Army Europe and Africa</h1>
       <h2>HHBn Staff Duty Roster</h2>
-      <div class="sub">SDNCO &amp; SD RUNNER &middot; PROPORTIONAL FAIRNESS SOLVER</div>
+      <div class="sub">SDNCO &amp; SD RUNNER &middot; PROPORTIONAL FAIRNESS SOLVER &middot; ${solverMethod.toUpperCase()}</div>
     </div>
     <div class="header-right">
       <span class="header-badge">STAFF DUTY</span>
@@ -1136,7 +1417,7 @@ function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, start
   html += `<div class="dash-footer">
     <p class="footer-line footer-title">HEADQUARTERS, UNITED STATES ARMY EUROPE AND AFRICA</p>
     <p class="footer-line">HHBn STAFF DUTY ROSTER &middot; SDNCO &amp; SD RUNNER &middot; ${qLabel}</p>
-    <p class="footer-line">GREEDY PROPORTIONAL FAIRNESS SOLVER &middot; USAREUR-AF OPERATIONAL DATA TEAM</p>
+    <p class="footer-line">${solverMethod.toUpperCase()} PROPORTIONAL FAIRNESS SOLVER &middot; USAREUR-AF OPERATIONAL DATA TEAM</p>
     <p class="footer-line">GENERATED: ${genDate} &middot; UNCLASSIFIED</p>
   </div>`;
 
@@ -1151,7 +1432,7 @@ function renderSummaryTable(title, roleResult, dirs, nDays, dates, holidaySet, c
   const H = dirs.reduce((s, d) => s + d.eligible, 0);
   const maxAssigned = Math.max(...stats.map(s => s.assignedTotal), 1);
 
-  let html = `<div><div class="dtable-wrap"><div class="dtable-hdr">${title}</div>`;
+  let html = `<div><div class="dtable-wrap"><div class="dtable-hdr">${title} <span style="float:right;font-size:0.75rem;letter-spacing:1px;opacity:0.8">${solverMethod.toUpperCase()}</span></div>`;
   html += `<table class="dtable"><thead><tr>
     <th>Directorate</th><th>Eligible</th><th>Target</th><th>Actual Days</th><th>Weekday</th><th>Weekend</th><th>Holiday</th><th>Hard Days</th>
   </tr></thead><tbody>`;
