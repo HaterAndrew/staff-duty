@@ -299,7 +299,7 @@ input:focus { outline: none; border-color: var(--gold); }
 .nav-tab:hover { color: #fff; }
 .nav-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
 
-.dash-container { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
+.dash-container { max-width: 1400px; margin: 0 auto; padding: 24px 24px 60px; }
 
 /* Section headers */
 .section-hdr {
@@ -363,7 +363,7 @@ input:focus { outline: none; border-color: var(--gold); }
   background: #fff;
   border: 1px solid #dde3ea;
   border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
   margin-bottom: 24px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
@@ -387,11 +387,13 @@ input:focus { outline: none; border-color: var(--gold); }
   text-align: left;
   border-bottom: 2px solid #dde3ea;
   position: sticky; top: 0;
+  white-space: nowrap;
 }
 .dtable td {
   padding: 10px 14px;
   border-bottom: 1px solid #eef1f5;
   color: #1e293b;
+  white-space: nowrap;
 }
 .dtable tr:hover { background: #f8f9fb; }
 
@@ -403,7 +405,7 @@ input:focus { outline: none; border-color: var(--gold); }
 
 /* Side-by-side */
 .side2 { display: flex; gap: 20px; flex-wrap: wrap; }
-.side2 > div { flex: 1; min-width: 360px; }
+.side2 > div { flex: 1; min-width: 480px; }
 
 /* Calendar */
 .cal-row-weekend { background: #eff6ff !important; }
@@ -1448,11 +1450,9 @@ function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, start
   // Section header: FAIRNESS
   html += `<div class="section-hdr"><span class="section-badge">FAIRNESS</span><span class="section-title">Equity Analysis</span></div>`;
 
-  // Fairness report
-  html += `<div class="side2">`;
+  // Fairness report (stacked, not side-by-side — these tables are wide)
   html += renderFairnessReport('SDNCO Fairness / Equity', result.sdnco, dirsSDNCO, nDays, dates, holidaySet, colorMap);
   html += renderFairnessReport('SD Runner Fairness / Equity', result.runner, dirsRunner, nDays, dates, holidaySet, colorMap);
-  html += `</div>`;
 
   // Section header: ROSTER
   html += `<div class="section-hdr"><span class="section-badge">ROSTER</span><span class="section-title">Daily Duty Assignment</span></div>`;
