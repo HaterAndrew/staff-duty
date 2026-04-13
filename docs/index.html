@@ -397,7 +397,7 @@ input:focus { outline: none; border-color: var(--gold); }
 
 /* Bar in summary */
 .bar-cell { display: flex; align-items: center; gap: 8px; }
-.bar-bg { height: 14px; border-radius: 3px; background: #e2e8f0; flex: 1; overflow: hidden; min-width: 100px; }
+.bar-bg { height: 14px; border-radius: 3px; background: #e2e8f0; flex: 1; overflow: hidden; min-width: 50px; }
 .bar-fill { height: 100%; border-radius: 3px; }
 .bar-val { font-weight: 700; min-width: 24px; text-align: right; }
 
@@ -1440,10 +1440,8 @@ function renderDashboard(result, dirsSDNCO, dirsRunner, dates, holidaySet, start
   html += `<div class="section-hdr"><span class="section-badge">SUMMARY</span><span class="section-title">Directorate Summary by Role</span></div>`;
 
   // Summary tables
-  html += `<div class="side2">`;
   html += renderSummaryTable('SDNCO Summary', result.sdnco, dirsSDNCO, nDays, dates, holidaySet, colorMap);
   html += renderSummaryTable('SD Runner Summary', result.runner, dirsRunner, nDays, dates, holidaySet, colorMap);
-  html += `</div>`;
 
   // Section header: FAIRNESS
   html += `<div class="section-hdr"><span class="section-badge">FAIRNESS</span><span class="section-title">Equity Analysis</span></div>`;
