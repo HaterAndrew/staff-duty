@@ -4,41 +4,69 @@ Staff Duty Roster — Web Application.
 Run:
   python -m staff_duty.app
   # then open  http://localhost:5001
-
-Dependencies (add to requirements.txt):
-  flask>=3.0
 """
 
 from __future__ import annotations
 
 import html as _html
+import json
+import logging
 import os
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlencode
 
-from flask import Flask, Response, request
+from flask import Flask, Response, jsonify, request
 
 from .calendar_utils import build_holiday_set, get_quarter_days
 from .config import Directorate, RosterConfig
 from .export import _USAREUR_SVG, write_excel, write_html
-from .solver import solve_joint
+from .solver import DirectorateStats, RosterSolution, solve_joint
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-staff-duty-secret-change-me")
 
-# ── CORS (allow GitHub Pages frontend) ────────────────────────────────────────
+_APP_VERSION = "2.0.0"
+_APP_START = time.time()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}',
+)
+logger = logging.getLogger("staff_duty")
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+_ALLOWED_ORIGINS = {
+    "https://haterandrew.github.io",
+    "https://usareur-af-odt.github.io",
+    "http://localhost:5001",
+    "http://127.0.0.1:5001",
+}
+
 @app.after_request
 def add_cors(response):
     origin = request.headers.get("Origin", "")
-    if origin in (
-        "https://haterandrew.github.io",
-        "http://localhost:5001",
-        "http://127.0.0.1:5001",
-    ):
+    if origin in _ALLOWED_ORIGINS:
         response.headers["Access-Control-Allow-Origin"] = origin
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, DELETE"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return response
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+_rate_store: dict[str, list[float]] = {}
+
+def _check_rate_limit(limit: int = 5, window: int = 60) -> bool:
+    ip = request.remote_addr or "unknown"
+    now = time.time()
+    hits = [t for t in _rate_store.get(ip, []) if t > now - window]
+    if len(hits) >= limit:
+        _rate_store[ip] = hits
+        return True
+    hits.append(now)
+    _rate_store[ip] = hits
+    return False
 
 # ── Colours (must match dashboard) ────────────────────────────────────────────
 _NAVY   = "#0C2340"
@@ -462,6 +490,16 @@ def _form_page() -> str:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+@app.route("/health")
+def health():
+    return jsonify({
+        "status": "ok",
+        "version": _APP_VERSION,
+        "solver": "PuLP/CBC",
+        "uptime_seconds": round(time.time() - _APP_START, 1),
+    })
+
+
 @app.route("/")
 def index() -> Response:
     return Response(_form_page(), mimetype="text/html")
@@ -469,10 +507,14 @@ def index() -> Response:
 
 @app.route("/generate", methods=["GET", "POST"])
 def generate() -> Response:
+    if request.method == "POST" and _check_rate_limit():
+        return jsonify({"error": "Too many requests."}), 429
     params = request.args if request.method == "GET" else request.form
     sdnco_sol, runner_sol, all_days, holiday_dates, err = _run_solver(params)
     if err:
         return Response(err, status=400, mimetype="text/html")
+
+    _save_roster_to_db(sdnco_sol, runner_sol, all_days, holiday_dates, params)
 
     fd, tmp = tempfile.mkstemp(suffix=".html")
     os.close(fd)
@@ -513,6 +555,230 @@ def export_excel() -> Response:
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Config CRUD ────────────────────────────────────────────────────────────────
+
+@app.route("/configs", methods=["GET"])
+def list_configs_route():
+    from .database import list_configs
+    return jsonify(list_configs())
+
+@app.route("/configs", methods=["POST"])
+def save_config_route():
+    if _check_rate_limit():
+        return jsonify({"error": "Too many requests."}), 429
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    config = data.get("config")
+    if not name or not config:
+        return jsonify({"error": "name and config are required"}), 400
+    from .database import save_config
+    return jsonify({"id": save_config(name, config)}), 201
+
+@app.route("/configs/<config_id>", methods=["GET"])
+def get_config_route(config_id):
+    from .database import get_config
+    cfg = get_config(config_id)
+    return jsonify(cfg) if cfg else (jsonify({"error": "Not found"}), 404)
+
+@app.route("/configs/<config_id>", methods=["DELETE"])
+def delete_config_route(config_id):
+    from .database import delete_config
+    return jsonify({"ok": True}) if delete_config(config_id) else (jsonify({"error": "Not found"}), 404)
+
+
+# ── History ────────────────────────────────────────────────────────────────────
+
+@app.route("/history")
+def history_page():
+    return Response("<html><body><h1>Roster History</h1><p>Coming soon.</p><a href='/'>Back</a></body></html>", mimetype="text/html")
+
+@app.route("/api/history")
+def list_rosters_route():
+    page = int(request.args.get("page", 1))
+    from .database import list_rosters
+    rosters, total = list_rosters(page=page)
+    return jsonify({"rosters": rosters, "total": total, "page": page})
+
+@app.route("/history/<roster_id>")
+def view_roster(roster_id):
+    from .database import get_roster
+    roster = get_roster(roster_id)
+    if not roster:
+        return Response("<h2>Not found</h2>", status=404, mimetype="text/html")
+    roster_data = roster["roster"]
+    sdnco_sol, runner_sol, all_days, holiday_dates = _reconstruct_from_stored(roster_data)
+    fd, tmp = tempfile.mkstemp(suffix=".html")
+    os.close(fd)
+    tmp_path = Path(tmp)
+    try:
+        write_html([sdnco_sol, runner_sol], all_days, holiday_dates, tmp_path)
+        page = tmp_path.read_text(encoding="utf-8")
+    finally:
+        os.unlink(tmp)
+    page = _inject_nav(page, [])
+    return Response(page, mimetype="text/html")
+
+@app.route("/history/<roster_id>/export/excel")
+def export_roster_excel(roster_id):
+    from .database import get_roster
+    roster = get_roster(roster_id)
+    if not roster:
+        return jsonify({"error": "Not found"}), 404
+    roster_data = roster["roster"]
+    sdnco_sol, runner_sol, all_days, holiday_dates = _reconstruct_from_stored(roster_data)
+    fd, tmp = tempfile.mkstemp(suffix=".xlsx")
+    os.close(fd)
+    tmp_path = Path(tmp)
+    try:
+        write_excel([sdnco_sol, runner_sol], all_days, holiday_dates, tmp_path)
+        data = tmp_path.read_bytes()
+    finally:
+        os.unlink(tmp)
+    filename = f"staff_duty_{all_days[0].strftime('%Y%m%d')}_{all_days[-1].strftime('%Y%m%d')}.xlsx"
+    return Response(data, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+@app.route("/history/<roster_id>", methods=["DELETE"])
+def delete_roster_route(roster_id):
+    from .database import delete_roster
+    return jsonify({"ok": True}) if delete_roster(roster_id) else (jsonify({"error": "Not found"}), 404)
+
+
+# ── Swap ──────────────────────────────────────────────────────────────────────
+
+@app.route("/roster/<roster_id>/swap", methods=["POST"])
+def swap_duty(roster_id):
+    from .database import get_db, get_roster
+    roster = get_roster(roster_id)
+    if not roster:
+        return jsonify({"error": "Not found"}), 404
+    data = request.get_json(silent=True) or {}
+    day1, day2 = data.get("day1"), data.get("day2")
+    role = data.get("role", "SDNCO")
+    if not day1 or not day2:
+        return jsonify({"error": "day1 and day2 required"}), 400
+    roster_data = roster["roster"]
+    role_key = "sdnco" if role == "SDNCO" else "runner"
+    assignments = roster_data.get(role_key, {})
+    if day1 not in assignments or day2 not in assignments:
+        return jsonify({"error": "Days not in roster"}), 400
+    assignments[day1], assignments[day2] = assignments[day2], assignments[day1]
+    roster_data[role_key] = assignments
+    swaps = roster.get("swaps") or []
+    swaps.append({"day1": day1, "day2": day2, "role": role, "reason": data.get("reason", "")})
+    conn = get_db()
+    conn.execute("UPDATE rosters SET roster_json=?, swaps_json=? WHERE id=?",
+                 (json.dumps(roster_data), json.dumps(swaps), roster_id))
+    conn.commit()
+    return jsonify({"valid": True, "swaps": swaps})
+
+
+# ── Lock & re-solve ──────────────────────────────────────────────────────────
+
+@app.route("/roster/<roster_id>/resolve", methods=["POST"])
+def resolve_with_locks(roster_id):
+    from .database import get_db, get_roster
+    roster = get_roster(roster_id)
+    if not roster:
+        return jsonify({"error": "Not found"}), 404
+    data = request.get_json(silent=True) or {}
+    locked = data.get("locked", {})
+    config_data = roster["config"]
+    try:
+        start = datetime.strptime(config_data["start"], "%Y-%m-%d").date()
+        end = datetime.strptime(config_data["end"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        return jsonify({"error": "Bad config"}), 500
+    sdnco_dirs = [Directorate(d["name"], d["eligible"]) for d in config_data.get("sdnco", [])]
+    runner_dirs = [Directorate(d["name"], d["eligible"]) for d in config_data.get("sd_runner", [])]
+    if not sdnco_dirs or not runner_dirs:
+        return jsonify({"error": "Bad config"}), 500
+    holiday_dates = build_holiday_set(start, end)
+    all_days = get_quarter_days(start, end)
+    sdnco_sol, runner_sol = solve_joint(
+        RosterConfig("SDNCO", start, end, sdnco_dirs),
+        RosterConfig("SD_Runner", start, end, runner_dirs), all_days, holiday_dates)
+    locked_count = 0
+    for lock_key, lock_dir in locked.items():
+        parts = lock_key.rsplit("_", 1)
+        if len(parts) != 2:
+            continue
+        try:
+            lock_day = datetime.strptime(parts[0], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if parts[1] == "SDNCO" and lock_day in sdnco_sol.assignment:
+            sdnco_sol.assignment[lock_day] = lock_dir
+            locked_count += 1
+        elif lock_day in runner_sol.assignment:
+            runner_sol.assignment[lock_day] = lock_dir
+            locked_count += 1
+    new_data = _serialize_roster(sdnco_sol, runner_sol, all_days, holiday_dates)
+    conn = get_db()
+    conn.execute("UPDATE rosters SET roster_json=?, locked_json=? WHERE id=?",
+                 (json.dumps(new_data), json.dumps(locked), roster_id))
+    conn.commit()
+    return jsonify({"locked_count": locked_count, "gini_sdnco": sdnco_sol.total_day_gini})
+
+
+# ── Soldiers ──────────────────────────────────────────────────────────────────
+
+@app.route("/roster/<roster_id>/soldiers", methods=["GET"])
+def get_soldiers(roster_id):
+    from .database import get_roster
+    roster = get_roster(roster_id)
+    if not roster:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(roster.get("soldier_assignments") or [])
+
+@app.route("/roster/<roster_id>/soldiers", methods=["POST"])
+def update_soldiers(roster_id):
+    from .database import get_roster, update_roster_soldiers
+    roster = get_roster(roster_id)
+    if not roster:
+        return jsonify({"error": "Not found"}), 404
+    data = request.get_json(silent=True) or []
+    update_roster_soldiers(roster_id, data)
+    return jsonify({"ok": True, "count": len(data)})
+
+
+# ── What-if ───────────────────────────────────────────────────────────────────
+
+@app.route("/whatif", methods=["POST"])
+def whatif():
+    if _check_rate_limit():
+        return jsonify({"error": "Too many requests."}), 429
+    data = request.get_json(silent=True) or {}
+    try:
+        start = datetime.strptime(data["start"], "%Y-%m-%d").date()
+        end = datetime.strptime(data["end"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        return jsonify({"error": "Invalid dates"}), 400
+    sdnco_dirs = [Directorate(d["name"], d["eligible"]) for d in data.get("sdnco", [])]
+    runner_dirs = [Directorate(d["name"], d["eligible"]) for d in data.get("sd_runner", [])]
+    if len(sdnco_dirs) < 2:
+        return jsonify({"error": "Need 2+ directorates"}), 400
+    holiday_dates = build_holiday_set(start, end)
+    all_days = get_quarter_days(start, end)
+    t0 = time.time()
+    sdnco_sol, runner_sol = solve_joint(
+        RosterConfig("SDNCO", start, end, sdnco_dirs),
+        RosterConfig("SD_Runner", start, end, runner_dirs), all_days, holiday_dates)
+    return jsonify({
+        "gini_sdnco": round(sdnco_sol.total_day_gini, 4),
+        "gini_runner": round(runner_sol.total_day_gini, 4),
+        "solver_status": sdnco_sol.solver_status,
+        "duration_seconds": round(time.time() - t0, 2),
+    })
+
+
+# ── Guide ─────────────────────────────────────────────────────────────────────
+
+@app.route("/guide")
+def guide():
+    return Response("<html><body><h1>User Guide</h1><p>See CLAUDE.md for docs.</p><a href='/'>Back</a></body></html>", mimetype="text/html")
 
 
 # ── Shared solver logic ────────────────────────────────────────────────────────
@@ -575,9 +841,93 @@ def _run_solver(form):
     )
     all_days = get_quarter_days(start, end)
 
-    sdnco_sol, runner_sol = solve_joint(sdnco_cfg, runner_cfg, all_days, holiday_dates)
+    t0 = time.time()
+    try:
+        sdnco_sol, runner_sol = solve_joint(sdnco_cfg, runner_cfg, all_days, holiday_dates)
+    except Exception as exc:
+        logger.error("Solver failed: %s", exc)
+        return None, None, None, None, (
+            "<h2>Solver error</h2><p>Try widening the date range or reducing directorates.</p>"
+            f"<p>{_html.escape(str(exc))}</p>"
+        )
+    logger.info("Solver: status=%s gini_s=%.4f gini_r=%.4f dur=%.2fs",
+                sdnco_sol.solver_status, sdnco_sol.total_day_gini,
+                runner_sol.total_day_gini, time.time() - t0)
 
     return sdnco_sol, runner_sol, all_days, holiday_dates, None
+
+
+# ── Serialization helpers ─────────────────────────────────────────────────────
+
+def _serialize_roster(sdnco_sol, runner_sol, all_days, holiday_dates) -> dict:
+    return {
+        "sdnco": {d.isoformat(): dn for d, dn in sdnco_sol.assignment.items()},
+        "runner": {d.isoformat(): dn for d, dn in runner_sol.assignment.items()},
+        "stats": {
+            "sdnco": [{"name": s.name, "eligible": s.eligible, "total_days": s.total_days,
+                        "weekday_days": s.weekday_days, "weekend_days": s.weekend_days,
+                        "holiday_days": s.holiday_days} for s in sdnco_sol.stats],
+            "runner": [{"name": s.name, "eligible": s.eligible, "total_days": s.total_days,
+                        "weekday_days": s.weekday_days, "weekend_days": s.weekend_days,
+                        "holiday_days": s.holiday_days} for s in runner_sol.stats],
+        },
+        "gini": {"sdnco_total": sdnco_sol.total_day_gini, "sdnco_hard": sdnco_sol.hard_day_gini,
+                 "runner_total": runner_sol.total_day_gini, "runner_hard": runner_sol.hard_day_gini},
+        "solver_status": sdnco_sol.solver_status,
+        "start": all_days[0].isoformat(), "end": all_days[-1].isoformat(),
+        "holidays": [d.isoformat() for d in sorted(holiday_dates)],
+    }
+
+
+def _reconstruct_from_stored(roster_data):
+    start = datetime.strptime(roster_data["start"], "%Y-%m-%d").date()
+    end = datetime.strptime(roster_data["end"], "%Y-%m-%d").date()
+    holiday_dates = {datetime.strptime(d, "%Y-%m-%d").date() for d in roster_data.get("holidays", [])}
+    all_days = get_quarter_days(start, end)
+    solutions = []
+    for role_key, role_name in [("sdnco", "SDNCO"), ("runner", "SD_Runner")]:
+        assignment = {datetime.strptime(d, "%Y-%m-%d").date(): dn for d, dn in roster_data.get(role_key, {}).items()}
+        stats = [DirectorateStats(name=s["name"], eligible=s["eligible"], total_days=s["total_days"],
+                                  weekday_days=s["weekday_days"], weekend_days=s["weekend_days"],
+                                  holiday_days=s["holiday_days"])
+                 for s in roster_data.get("stats", {}).get(role_key, [])]
+        gini = roster_data.get("gini", {})
+        solutions.append(RosterSolution(role=role_name, assignment=assignment, stats=stats,
+                                        solver_status=roster_data.get("solver_status", "Stored"),
+                                        total_day_gini=gini.get(f"{role_key}_total", 0.0),
+                                        hard_day_gini=gini.get(f"{role_key}_hard", 0.0)))
+    return solutions[0], solutions[1], all_days, holiday_dates
+
+
+def _save_roster_to_db(sdnco_sol, runner_sol, all_days, holiday_dates, params) -> str | None:
+    try:
+        from .database import save_roster
+        roster_data = _serialize_roster(sdnco_sol, runner_sol, all_days, holiday_dates)
+        names = params.getlist("dir_name")
+        sdnco_counts = params.getlist("sdnco_count")
+        runner_counts = params.getlist("runner_count")
+        same = "same_counts" in params
+        sdnco, sd_runner = [], []
+        for i, n in enumerate(names):
+            n = n.strip()
+            if not n:
+                continue
+            sc = max(1, int(sdnco_counts[i])) if i < len(sdnco_counts) else 1
+            rc = sc if same else (max(1, int(runner_counts[i])) if i < len(runner_counts) else sc)
+            sdnco.append({"name": n, "eligible": sc})
+            sd_runner.append({"name": n, "eligible": rc})
+        config_data = {"start": params.get("start", ""), "end": params.get("end", ""),
+                       "sdnco": sdnco, "sd_runner": sd_runner,
+                       "extra_holidays": params.get("extra_holidays", "")}
+        q_start = all_days[0]
+        month_to_q = {10:1,11:1,12:1,1:2,2:2,3:2,4:3,5:3,6:3,7:4,8:4,9:4}
+        quarter = f"FY{q_start.year}-Q{month_to_q.get(q_start.month, 0)}"
+        return save_roster(config_id=None, quarter=quarter, solver_status=sdnco_sol.solver_status,
+                           gini_sdnco=sdnco_sol.total_day_gini, gini_runner=runner_sol.total_day_gini,
+                           roster_json=roster_data, config_json=config_data)
+    except Exception as exc:
+        logger.warning("DB save failed: %s", exc)
+        return None
 
 
 # ── Nav bar injection ─────────────────────────────────────────────────────────
@@ -617,7 +967,6 @@ def _inject_nav(page: str, form_items: list[tuple[str, str]]) -> str:
 </style>"""
 
     # Build query string for GET-based Excel download link
-    from urllib.parse import urlencode
     excel_qs = urlencode(form_items)
 
     nav_bar = (
