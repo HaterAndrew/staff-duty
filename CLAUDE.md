@@ -1,4 +1,4 @@
-# CLAUDE.md — Staff Duty Roster Solver
+# CLAUDE.md: Staff Duty Roster Solver
 
 ASCC HQ staff duty roster optimization tool. Flask web app + CLI backed by integer linear programming solver.
 
