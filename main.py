@@ -40,15 +40,14 @@ from pathlib import Path
 
 import click
 
+from shared_logging import setup_logging
+
 from .calendar_utils import build_holiday_set, get_quarter_days
 from .config import Directorate, RosterConfig
 from .export import write_excel, write_html
 from .solver import solve_joint
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s  %(message)s",
-)
+setup_logging("staff_duty")
 logger = logging.getLogger(__name__)
 
 

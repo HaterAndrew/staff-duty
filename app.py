@@ -20,6 +20,8 @@ from urllib.parse import urlencode
 
 from flask import Flask, Response, jsonify, request
 
+from shared_logging import flask_request_hooks, setup_logging
+
 from .calendar_utils import build_holiday_set, get_quarter_days
 from .config import Directorate, RosterConfig
 from .export import _USAREUR_SVG, write_excel, write_html
@@ -31,11 +33,9 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-staff-duty-secret-change-me")
 _APP_VERSION = "2.0.0"
 _APP_START = time.time()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}',
-)
+setup_logging("staff_duty", log_dir=os.environ.get("LOG_DIR"))
 logger = logging.getLogger("staff_duty")
+flask_request_hooks(app)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 _ALLOWED_ORIGINS = {
