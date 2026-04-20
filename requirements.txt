@@ -1,3 +1,9 @@
+# Supply-chain note: pins are lower-bounds only.
+# For reproducible deploys, generate a hash-pinned lockfile:
+#   uv pip compile --generate-hashes requirements.txt -o requirements.lock
+# Then install with:
+#   pip install --require-hashes -r requirements.lock
+# CI should run `pip-audit -r requirements.txt` on every PR.
 flask>=3.0
 gunicorn>=22.0
 holidays>=0.60
