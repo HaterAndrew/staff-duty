@@ -1,6 +1,10 @@
 """Shared fixtures for staff duty roster tests."""
 
 import os
+
+os.environ.setdefault("SECRET_KEY", "test-secret-not-for-prod")
+os.environ.setdefault("STAFF_DUTY_ALLOWED_IPS", "127.0.0.1/32,::1/128")
+
 from datetime import date
 
 import pytest

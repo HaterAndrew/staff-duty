@@ -9,6 +9,7 @@ Run:
 from __future__ import annotations
 
 import html as _html
+import ipaddress
 import json
 import logging
 import os
@@ -28,7 +29,10 @@ from .export import _USAREUR_SVG, write_excel, write_html
 from .solver import DirectorateStats, RosterSolution, solve_joint
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-staff-duty-secret-change-me")
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    raise RuntimeError("SECRET_KEY environment variable must be set")
+app.secret_key = _secret
 
 _APP_VERSION = "2.0.0"
 _APP_START = time.time()
@@ -488,6 +492,66 @@ def _form_page() -> str:
     return pre_svg + _USAREUR_SVG + post_svg
 
 
+# ── IP allowlist (Fly edge enforcement) ───────────────────────────────────────
+# Fly.io's edge sets the `Fly-Client-IP` header and strips any client-supplied
+# copies, so we can trust it. Locally (no Fly edge), fall back to remote_addr.
+# The allowlist is driven by STAFF_DUTY_ALLOWED_IPS (comma-separated CIDRs).
+# If unset/empty, the app fails closed with 503.
+
+def _parse_allowed_cidrs(raw: str) -> list[ipaddress._BaseNetwork]:
+    nets: list[ipaddress._BaseNetwork] = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            logger.warning("invalid cidr in STAFF_DUTY_ALLOWED_IPS: %s", item)
+    return nets
+
+
+@app.before_request
+def _ip_allowlist_gate():
+    # Exempt health checks so Fly's platform probes continue to work.
+    if request.path == "/health":
+        return None
+
+    raw = os.environ.get("STAFF_DUTY_ALLOWED_IPS", "").strip()
+    if not raw:
+        return Response(
+            "Service Unavailable: allowlist not configured. "
+            "Set STAFF_DUTY_ALLOWED_IPS.",
+            status=503,
+            mimetype="text/plain",
+        )
+
+    networks = _parse_allowed_cidrs(raw)
+    if not networks:
+        return Response(
+            "Service Unavailable: allowlist not configured. "
+            "Set STAFF_DUTY_ALLOWED_IPS.",
+            status=503,
+            mimetype="text/plain",
+        )
+
+    # Prefer Fly-Client-IP (trusted, set by Fly edge); fall back for local dev.
+    client_ip_raw = request.headers.get("Fly-Client-IP") or request.remote_addr or ""
+    client_ip_raw = client_ip_raw.strip()
+    try:
+        client_ip = ipaddress.ip_address(client_ip_raw)
+    except ValueError:
+        logger.warning("deny ip=%s path=%s", client_ip_raw, request.path)
+        return Response("Forbidden", status=403, mimetype="text/plain")
+
+    for net in networks:
+        if client_ip in net:
+            return None
+
+    logger.warning("deny ip=%s path=%s", client_ip_raw, request.path)
+    return Response("Forbidden", status=403, mimetype="text/plain")
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/health")
@@ -507,7 +571,7 @@ def index() -> Response:
 
 @app.route("/generate", methods=["GET", "POST"])
 def generate() -> Response:
-    if request.method == "POST" and _check_rate_limit():
+    if _check_rate_limit():
         return jsonify({"error": "Too many requests."}), 429
     params = request.args if request.method == "GET" else request.form
     sdnco_sol, runner_sol, all_days, holiday_dates, err = _run_solver(params)
