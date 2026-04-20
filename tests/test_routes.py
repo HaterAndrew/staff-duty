@@ -16,13 +16,15 @@ class TestHealthRoute:
     """Test the health check endpoint."""
 
     def test_health_returns_200(self, flask_test_client):
-        """GET /health returns 200 with required keys."""
+        """GET /health returns 200 with minimal body.
+
+        Phase 3 hardening reduced the response to ``{"ok": True}`` — version
+        and uptime were removed to avoid info disclosure on the only
+        unauthenticated endpoint.
+        """
         resp = flask_test_client.get("/health")
         assert resp.status_code == 200
-        data = resp.get_json()
-        assert "status" in data
-        assert "version" in data
-        assert "uptime_seconds" in data
+        assert resp.get_json() == {"ok": True}
 
 
 class TestGenerateRoute:

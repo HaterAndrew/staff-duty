@@ -8,6 +8,7 @@ Run:
 
 from __future__ import annotations
 
+import hashlib
 import html as _html
 import ipaddress
 import json
@@ -15,6 +16,7 @@ import logging
 import os
 import tempfile
 import time
+from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
@@ -42,9 +44,6 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
 )
 
-_APP_VERSION = "2.0.0"
-_APP_START = time.time()
-
 setup_logging("staff_duty", log_dir=os.environ.get("LOG_DIR"))
 logger = logging.getLogger("staff_duty")
 flask_request_hooks(app)
@@ -67,7 +66,15 @@ def add_cors(response):
     return response
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
-_rate_store: dict[str, list[float]] = {}
+# NOTE: The rate-limit store is per-process memory. With gunicorn running 2
+# workers (see Dockerfile/fly.toml), a given client may hit each worker
+# independently, so the effective cap is ~2x the per-process limit. That is
+# acceptable because the IP allowlist is the primary access control; this
+# limiter is a secondary DoS guard for accidental over-use from a trusted IP.
+# The OrderedDict + _RATE_STORE_MAX cap prevents unbounded memory growth if
+# a burst of unique client IPs hits the service.
+_RATE_STORE_MAX = 10_000
+_rate_store: OrderedDict[str, list[float]] = OrderedDict()
 
 def _client_key() -> str:
     # Behind the Fly edge, request.remote_addr is the proxy's IP, so every real
@@ -92,11 +99,18 @@ def _check_rate_limit(limit: int = 5, window: int = 60) -> bool:
     ip = _client_key()
     now = time.time()
     hits = [t for t in _rate_store.get(ip, []) if t > now - window]
+    # Re-insert at the tail to mark this key as most-recently-used (LRU).
+    if ip in _rate_store:
+        _rate_store.move_to_end(ip)
     if len(hits) >= limit:
         _rate_store[ip] = hits
         return True
     hits.append(now)
     _rate_store[ip] = hits
+    # Evict oldest entries when the store grows past the cap. Bounded eviction
+    # loop prevents a flood of unique IPs from exhausting memory.
+    while len(_rate_store) > _RATE_STORE_MAX:
+        _rate_store.popitem(last=False)
     return False
 
 # ── Colours (must match dashboard) ────────────────────────────────────────────
@@ -583,12 +597,11 @@ def _ip_allowlist_gate():
 
 @app.route("/health")
 def health():
-    return jsonify({
-        "status": "ok",
-        "version": _APP_VERSION,
-        "solver": "PuLP/CBC",
-        "uptime_seconds": round(time.time() - _APP_START, 1),
-    })
+    # Minimal liveness probe. Do not disclose version/build/uptime to
+    # unauthenticated callers — Fly's platform probe and external monitoring
+    # only need the 200 status; richer introspection belongs behind the
+    # IP allowlist on authenticated routes.
+    return jsonify({"ok": True})
 
 
 @app.route("/")
@@ -607,14 +620,12 @@ def generate() -> Response:
 
     _save_roster_to_db(sdnco_sol, runner_sol, all_days, holiday_dates, params)
 
-    fd, tmp = tempfile.mkstemp(suffix=".html")
-    os.close(fd)
-    tmp_path = Path(tmp)
-    try:
+    # TemporaryDirectory guarantees cleanup even if write_html raises, so we
+    # don't leak /tmp files on solver output failures.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir) / "roster.html"
         write_html([sdnco_sol, runner_sol], all_days, holiday_dates, tmp_path)
         page = tmp_path.read_text(encoding="utf-8")
-    finally:
-        os.unlink(tmp)
 
     page = _inject_nav(page, list(params.items(multi=True)))
     return Response(page, mimetype="text/html")
@@ -628,14 +639,11 @@ def export_excel() -> Response:
     if err:
         return Response(err, status=400, mimetype="text/html")
 
-    fd, tmp = tempfile.mkstemp(suffix=".xlsx")
-    os.close(fd)
-    tmp_path = Path(tmp)
-    try:
+    # TemporaryDirectory guarantees cleanup even if write_excel raises.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir) / "roster.xlsx"
         write_excel([sdnco_sol, runner_sol], all_days, holiday_dates, tmp_path)
         data = tmp_path.read_bytes()
-    finally:
-        os.unlink(tmp)
 
     q_start = all_days[0]
     q_end   = all_days[-1]
@@ -705,14 +713,10 @@ def view_roster(roster_id):
         return Response("<h2>Not found</h2>", status=404, mimetype="text/html")
     roster_data = roster["roster"]
     sdnco_sol, runner_sol, all_days, holiday_dates = _reconstruct_from_stored(roster_data)
-    fd, tmp = tempfile.mkstemp(suffix=".html")
-    os.close(fd)
-    tmp_path = Path(tmp)
-    try:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir) / "roster.html"
         write_html([sdnco_sol, runner_sol], all_days, holiday_dates, tmp_path)
         page = tmp_path.read_text(encoding="utf-8")
-    finally:
-        os.unlink(tmp)
     page = _inject_nav(page, [])
     return Response(page, mimetype="text/html")
 
@@ -724,14 +728,10 @@ def export_roster_excel(roster_id):
         return jsonify({"error": "Not found"}), 404
     roster_data = roster["roster"]
     sdnco_sol, runner_sol, all_days, holiday_dates = _reconstruct_from_stored(roster_data)
-    fd, tmp = tempfile.mkstemp(suffix=".xlsx")
-    os.close(fd)
-    tmp_path = Path(tmp)
-    try:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir) / "roster.xlsx"
         write_excel([sdnco_sol, runner_sol], all_days, holiday_dates, tmp_path)
         data = tmp_path.read_bytes()
-    finally:
-        os.unlink(tmp)
     filename = f"staff_duty_{all_days[0].strftime('%Y%m%d')}_{all_days[-1].strftime('%Y%m%d')}.xlsx"
     return Response(data, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
@@ -743,6 +743,18 @@ def delete_roster_route(roster_id):
 
 
 # ── Swap ──────────────────────────────────────────────────────────────────────
+
+def _roster_etag(roster_data: dict) -> str:
+    """Content-addressed ETag for a roster payload.
+
+    Hashes the canonical JSON encoding of the stored roster so two clients
+    viewing the same persisted state see the same tag. Any mutation (swap,
+    re-solve) changes the tag, so a stale client write gets a 412/409 on
+    mismatch instead of silently clobbering a concurrent update.
+    """
+    canonical = json.dumps(roster_data, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
 
 @app.route("/roster/<roster_id>/swap", methods=["POST"])
 def swap_duty(roster_id):
@@ -756,6 +768,36 @@ def swap_duty(roster_id):
     if not day1 or not day2:
         return jsonify({"error": "day1 and day2 required"}), 400
     roster_data = roster["roster"]
+
+    # Optimistic concurrency control: the client must echo the ETag it last
+    # saw (either via the If-Match header, standard HTTP style, or an
+    # `if_match` field in the JSON body for clients that can't set headers).
+    # If no tag is supplied, the request is rejected rather than silently
+    # accepted — this closes the lost-update window entirely for callers
+    # that want safety, while leaving a path for trusted automation to
+    # explicitly opt out by fetching the current tag first.
+    current_etag = _roster_etag(roster_data)
+    client_etag = (
+        request.headers.get("If-Match", "").strip().strip('"')
+        or str(data.get("if_match", "")).strip()
+    )
+    if not client_etag:
+        return (
+            jsonify({
+                "error": "If-Match required",
+                "etag": current_etag,
+            }),
+            428,  # Precondition Required
+        )
+    if client_etag != current_etag:
+        return (
+            jsonify({
+                "error": "Roster was modified by another request",
+                "etag": current_etag,
+            }),
+            409,  # Conflict
+        )
+
     role_key = "sdnco" if role == "SDNCO" else "runner"
     assignments = roster_data.get(role_key, {})
     if day1 not in assignments or day2 not in assignments:
@@ -768,7 +810,8 @@ def swap_duty(roster_id):
     conn.execute("UPDATE rosters SET roster_json=?, swaps_json=? WHERE id=?",
                  (json.dumps(roster_data), json.dumps(swaps), roster_id))
     conn.commit()
-    return jsonify({"valid": True, "swaps": swaps})
+    new_etag = _roster_etag(roster_data)
+    return jsonify({"valid": True, "swaps": swaps, "etag": new_etag})
 
 
 # ── Lock & re-solve ──────────────────────────────────────────────────────────

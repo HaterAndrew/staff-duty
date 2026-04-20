@@ -10,10 +10,17 @@ primary_region = 'fra'
   auto_start_machines = true
   min_machines_running = 1
 
+# Concurrency caps are tight on purpose. Gunicorn runs 2 workers (see
+# Dockerfile) and the ILP solver can take up to 120s per /generate,
+# /export/excel, /resolve, or /whatif request. With `hard_limit = 25` a
+# burst would queue 23 requests behind 2 in-flight solves — guaranteed
+# head-of-line blocking and exhausted 150s gunicorn timeouts. A smaller
+# cap gives Fly's edge an earlier signal to shed load to a cold machine
+# (auto_start_machines = true) instead of piling onto a saturated one.
 [http_service.concurrency]
   type = "requests"
-  hard_limit = 25
-  soft_limit = 20
+  hard_limit = 10
+  soft_limit = 6
 
 [[http_service.checks]]
   grace_period = "10s"
