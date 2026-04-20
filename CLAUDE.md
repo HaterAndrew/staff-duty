@@ -62,3 +62,9 @@ staff_duty/
 - SQLite DB path: `/data/staff_duty.db` on Fly.io, `./staff_duty.db` locally. Override with `STAFF_DUTY_DB` env var.
 - Gunicorn timeout: 150s to accommodate 120s solver runs
 - CORS allowed: `haterandrew.github.io`, `usareur-af-odt.github.io`, localhost
+
+## Required env (Phase 1 hardening)
+
+- `SECRET_KEY`: **required** — Flask sessions; app raises at import if unset. Set in Fly secrets in prod.
+- `STAFF_DUTY_ALLOWED_IPS`: **required** — comma-separated CIDR allowlist (e.g. `127.0.0.1/32,10.0.0.0/8`). Unset/empty returns 503 on every non-health request. Enforced against `Fly-Client-IP` header behind the Fly edge.
+- `STAFF_DUTY_COOKIE_INSECURE=true`: **dev only** — disables `SESSION_COOKIE_SECURE` so local HTTP dev (`python -m staff_duty.app`) can set session cookies. Never set in prod.

@@ -14,6 +14,10 @@ else:
 
 DB_PATH = os.environ.get('STAFF_DUTY_DB', _default_db)
 
+# Tighten file perms to owner-only once after the file materializes. SQLite
+# creates the DB file on first connect with umask-derived perms (often 0644).
+_perms_tightened = False
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS configs (
     id          TEXT PRIMARY KEY,
@@ -41,12 +45,21 @@ CREATE TABLE IF NOT EXISTS rosters (
 
 def get_db() -> sqlite3.Connection:
     """Get a database connection, creating tables if needed."""
+    global _perms_tightened
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     # Ensure tables exist on every connection (cheap no-op if already there)
     conn.executescript(_SCHEMA)
+    # Restrict DB file perms to owner-only on first successful connect.
+    # Tolerate OSError (e.g., mounted filesystem that disallows chmod).
+    if not _perms_tightened:
+        try:
+            os.chmod(DB_PATH, 0o600)
+        except OSError:
+            pass
+        _perms_tightened = True
     return conn
 
 
@@ -54,6 +67,10 @@ def init_db():
     """Create tables if they don't exist."""
     conn = get_db()
     conn.close()
+    try:
+        os.chmod(DB_PATH, 0o600)
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------------------

@@ -34,6 +34,14 @@ if not _secret:
     raise RuntimeError("SECRET_KEY environment variable must be set")
 app.secret_key = _secret
 
+# Session cookie hardening. Secure=True by default; set STAFF_DUTY_COOKIE_INSECURE=true
+# for local HTTP dev (e.g., running under `flask run` without TLS).
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("STAFF_DUTY_COOKIE_INSECURE", "").lower() != "true",
+    SESSION_COOKIE_HTTPONLY=True,
+)
+
 _APP_VERSION = "2.0.0"
 _APP_START = time.time()
 
@@ -61,8 +69,27 @@ def add_cors(response):
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 _rate_store: dict[str, list[float]] = {}
 
+def _client_key() -> str:
+    # Behind the Fly edge, request.remote_addr is the proxy's IP, so every real
+    # client would share a single bucket. Fly edge sets Fly-Client-IP and strips
+    # client-supplied copies of that header, so it is trustworthy as the real
+    # client identifier. Locally (no Fly edge), fall back to remote_addr.
+    # Do NOT honour X-Forwarded-For (user-controllable upstream of Fly).
+    raw = (request.headers.get("Fly-Client-IP") or request.remote_addr or "").strip()
+    if not raw:
+        # Unknown client: bucket under a shared key so we still apply the limit
+        # (fail-safe: would-be abuser gets throttled with anyone else unknown).
+        return "unknown"
+    try:
+        # Validate as IP to prevent weird header values from creating many buckets.
+        ipaddress.ip_address(raw)
+    except ValueError:
+        return "unknown"
+    return raw
+
+
 def _check_rate_limit(limit: int = 5, window: int = 60) -> bool:
-    ip = request.remote_addr or "unknown"
+    ip = _client_key()
     now = time.time()
     hits = [t for t in _rate_store.get(ip, []) if t > now - window]
     if len(hits) >= limit:
@@ -660,7 +687,12 @@ def history_page():
 
 @app.route("/api/history")
 def list_rosters_route():
-    page = int(request.args.get("page", 1))
+    # Clamp to [1, 10000] to prevent unbounded OFFSET; default to 1 on bad input
+    # rather than leaking a 500 / stack trace.
+    try:
+        page = max(1, min(int(request.args.get("page", 1)), 10000))
+    except (TypeError, ValueError):
+        page = 1
     from .database import list_rosters
     rosters, total = list_rosters(page=page)
     return jsonify({"rosters": rosters, "total": total, "page": page})
@@ -824,6 +856,18 @@ def whatif():
     runner_dirs = [Directorate(d["name"], d["eligible"]) for d in data.get("sd_runner", [])]
     if len(sdnco_dirs) < 2:
         return jsonify({"error": "Need 2+ directorates"}), 400
+
+    # DoS caps — use the larger of the two role lists to decide the directorate cap.
+    max_dirs_for_cap = sdnco_dirs if len(sdnco_dirs) >= len(runner_dirs) else runner_dirs
+    raw_extra = data.get("extra_holidays", "") or ""
+    if isinstance(raw_extra, list):
+        extra_list = [str(x).strip() for x in raw_extra if str(x).strip()]
+    else:
+        extra_list = [p for p in (p.strip() for p in str(raw_extra).split(",")) if p]
+    cap_err = _validate_solver_inputs(max_dirs_for_cap, start, end, extra_list)
+    if cap_err:
+        return jsonify({"error": cap_err}), 400
+
     holiday_dates = build_holiday_set(start, end)
     all_days = get_quarter_days(start, end)
     t0 = time.time()
@@ -847,6 +891,49 @@ def guide():
 
 # ── Shared solver logic ────────────────────────────────────────────────────────
 
+# DoS caps applied at the Flask boundary — the ILP solver's runtime grows
+# non-linearly in (directorates * days), so we reject inputs that could let a
+# single request burn the gunicorn 150s budget or wedge a worker.
+_MAX_DIRECTORATES = 20
+_MAX_DAYS = 180
+_MAX_EXTRA_HOLIDAYS = 60
+
+
+def _validate_solver_inputs(
+    directorates: list,
+    start_date,
+    end_date,
+    extra_holidays_list: list,
+) -> str | None:
+    """Return an error message if any cap is breached, else None.
+
+    Caps:
+      - directorates: up to 20
+      - date range:   up to 180 days (start -> end, inclusive of either bound)
+      - extra_holidays: up to 60 entries
+    """
+    if len(directorates) > _MAX_DIRECTORATES:
+        return (
+            f"Too many directorates: {len(directorates)} "
+            f"(max {_MAX_DIRECTORATES})."
+        )
+    try:
+        span_days = (end_date - start_date).days
+    except Exception:
+        return "Invalid date range."
+    if span_days > _MAX_DAYS:
+        return (
+            f"Date range too long: {span_days} days "
+            f"(max {_MAX_DAYS})."
+        )
+    if len(extra_holidays_list) > _MAX_EXTRA_HOLIDAYS:
+        return (
+            f"Too many extra holidays: {len(extra_holidays_list)} "
+            f"(max {_MAX_EXTRA_HOLIDAYS})."
+        )
+    return None
+
+
 def _run_solver(form):
     """Parse form, run ILP solver, return (sdnco_sol, runner_sol, all_days, holidays, err_html).
     On error, the first four values are None and err_html is a string."""
@@ -863,6 +950,14 @@ def _run_solver(form):
     sdnco_counts  = form.getlist("sdnco_count")
     runner_counts = form.getlist("runner_count")
     same_counts   = "same_counts" in form
+
+    # Pre-solver DoS caps (input volume). Filter blanks to match the parse loop.
+    non_blank_names = [n for n in names if n.strip()]
+    raw_extra = form.get("extra_holidays", "") or ""
+    extra_list = [p for p in (p.strip() for p in raw_extra.split(",")) if p]
+    cap_err = _validate_solver_inputs(non_blank_names, start, end, extra_list)
+    if cap_err:
+        return None, None, None, None, f"<h2>{_html.escape(cap_err)}</h2>"
 
     sdnco_dirs:  list[Directorate] = []
     runner_dirs: list[Directorate] = []
