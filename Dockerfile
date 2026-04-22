@@ -5,8 +5,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy as a package so relative imports work
-COPY . staff_duty/
+# staff_duty/ is now a real subdir in the split repo; just copy the tree.
+COPY . .
 
 # Non-root runtime user; /data is the Fly volume mount point owned by this uid
 RUN useradd --system --uid 1000 --home /app --shell /usr/sbin/nologin appuser \
