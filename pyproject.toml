@@ -1,0 +1,26 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+ignore = [
+  "S101",   # assert usage (ok in tests)
+  "S603",   # subprocess calls (ok for build scripts)
+  "S607",   # partial path subprocess
+  "S311",   # random not for crypto
+  "E501",   # line too long
+  "B008",   # mutable default args (SQLAlchemy Column defaults)
+  "E402",   # import not at top (test sys.path manipulation)
+  "E741",   # ambiguous variable names
+  "S310",   # url open (hardcoded constants)
+  "S110",   # try-except-pass
+  "S105",   # hardcoded password (false positive on dev strings)
+  "E702",   # multiple statements on one line (semicolon)
+  "E701",   # multiple statements on one line colon
+  "B007",   # unused loop variable (intentional in enumerate patterns)
+  "B904",   # raise without from (acceptable in simple re-raise)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
