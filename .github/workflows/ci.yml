@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install lint tooling
+        run: pip install ruff==0.6.9 bandit==1.7.9 pip-audit==2.7.3
+      - name: ruff check
+        run: ruff check staff_duty/ tests/
+      - name: bandit (security lint)
+        run: bandit -r staff_duty -x staff_duty/tests -ll
+      - name: pip-audit (dependency CVEs)
+        run: pip-audit --requirement requirements.txt --strict
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run tests
+        run: |
+          python -m pytest tests/ --tb=short -q --cov=staff_duty --cov-report=term-missing
+        env:
+          STAFF_DUTY_DB: /tmp/test_staff_duty.db
+          SECRET_KEY: test-secret-not-for-prod
+          STAFF_DUTY_ALLOWED_IPS: "127.0.0.1/32,::1/128"
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Start app and smoke test
+        env:
+          SECRET_KEY: test-secret-not-for-prod
+          STAFF_DUTY_ALLOWED_IPS: "127.0.0.1/32,::1/128"
+        run: |
+          STAFF_DUTY_DB=/tmp/smoke.db python -m gunicorn --bind 127.0.0.1:8080 --workers 1 --timeout 150 staff_duty.app:app &
+          sleep 3
+          # Health check
+          curl -sf http://127.0.0.1:8080/health | python -c "import sys,json; d=json.load(sys.stdin); assert d['status']=='ok', d"
+          # Smoke: generate with minimal config
+          curl -sf "http://127.0.0.1:8080/generate?start=2026-07-01&end=2026-07-14&dir_name=G1&dir_name=G2&sdnco_count=5&sdnco_count=5&runner_count=4&runner_count=4" -o /dev/null -w "%{http_code}" | grep -q 200
+          echo "Smoke tests passed"

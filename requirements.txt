@@ -1,0 +1,15 @@
+# Supply-chain note: pins are lower-bounds only.
+# For reproducible deploys, generate a hash-pinned lockfile:
+#   uv pip compile --generate-hashes requirements.txt -o requirements.lock
+# Then install with:
+#   pip install --require-hashes -r requirements.lock
+# CI should run `pip-audit -r requirements.txt` on every PR.
+flask>=3.0
+gunicorn>=22.0
+holidays>=0.60
+openpyxl>=3.1
+click>=8.1
+pulp>=2.8
+
+# ODT shared logging (private repo; requires read:repo token for install)
+odt @ git+https://github.com/HaterAndrew/odt@v0.1.0
