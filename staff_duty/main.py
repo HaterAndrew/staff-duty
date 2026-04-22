@@ -39,7 +39,6 @@ from datetime import date, datetime
 from pathlib import Path
 
 import click
-
 from odt.logging import setup_logging
 
 from .calendar_utils import build_holiday_set, get_quarter_days
