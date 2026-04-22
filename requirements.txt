@@ -10,3 +10,6 @@ holidays>=0.60
 openpyxl>=3.1
 click>=8.1
 pulp>=2.8
+
+# ODT shared logging (private repo; requires read:repo token for install)
+odt @ git+https://github.com/HaterAndrew/odt@v0.1.0
