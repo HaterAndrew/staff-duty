@@ -23,7 +23,7 @@ from urllib.parse import urlencode
 
 from flask import Flask, Response, jsonify, request
 
-from shared_logging import flask_request_hooks, setup_logging
+from odt.logging import flask_request_hooks, setup_logging
 
 from .calendar_utils import build_holiday_set, get_quarter_days
 from .config import Directorate, RosterConfig

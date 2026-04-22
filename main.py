@@ -40,7 +40,7 @@ from pathlib import Path
 
 import click
 
-from shared_logging import setup_logging
+from odt.logging import setup_logging
 
 from .calendar_utils import build_holiday_set, get_quarter_days
 from .config import Directorate, RosterConfig
