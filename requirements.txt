@@ -12,4 +12,4 @@ click>=8.1
 pulp>=2.8
 
 # ODT shared logging (private repo; requires read:repo token for install)
-odt @ git+https://github.com/HaterAndrew/odt@v0.1.0
+odt @ git+https://github.com/HaterAndrew/odt@936630086b971487bb1c555eaf936e3125ca1cb5  # was @v0.1.0 (mutable tag) — pinned 2026-04-25 per AUD-110
