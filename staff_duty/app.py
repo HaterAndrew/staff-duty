@@ -1126,9 +1126,13 @@ def _save_roster_to_db(sdnco_sol, runner_sol, all_days, holiday_dates, params) -
         return save_roster(config_id=None, quarter=quarter, solver_status=sdnco_sol.solver_status,
                            gini_sdnco=sdnco_sol.total_day_gini, gini_runner=runner_sol.total_day_gini,
                            roster_json=roster_data, config_json=config_data)
-    except Exception as exc:
-        logger.warning("DB save failed: %s", exc)
-        return None
+    except Exception:
+        # Warn-3 fix (2026-04-26): roster generation must NOT succeed silently
+        # while persistence fails. Re-raise so the caller (route handler) returns
+        # a 500, forcing the operator to notice. The previous warn-and-return-None
+        # masked DB outages and hid swap/audit history loss.
+        logger.exception("roster_db_save_failed")
+        raise
 
 
 # ── Nav bar injection ─────────────────────────────────────────────────────────

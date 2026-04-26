@@ -15,6 +15,7 @@ HTML dashboard:
 
 from __future__ import annotations
 
+import html as _html
 from datetime import date
 from pathlib import Path
 
@@ -24,6 +25,29 @@ from openpyxl.utils import get_column_letter
 
 from .calendar_utils import HOLIDAY, WEEKDAY, WEEKEND, classify_day
 from .solver import RosterSolution
+
+# ── Hardening helpers ────────────────────────────────────────────────────────
+# M-staff-01: Excel formula-injection guard. Prefixing user-controlled strings
+# that begin with =/+/-/@ or a leading control char with a single-quote prevents
+# Excel/Sheets/Numbers from interpreting the cell as a formula on open.
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _xl_safe(value):
+    """Sanitize values destined for Excel cells.
+
+    For str inputs: prefix a single-quote if the value starts with a formula
+    trigger. Non-str inputs (int/float/datetime) pass through untouched —
+    openpyxl encodes them safely.
+    """
+    if isinstance(value, str) and value and value[0] in _FORMULA_TRIGGERS:
+        return "'" + value
+    return value
+
+
+def _h(value) -> str:
+    """M-staff-02: HTML-escape a value for safe interpolation into f-strings."""
+    return _html.escape("" if value is None else str(value), quote=True)
 
 # ── Colour palette (max 16 directorates) ─────────────────────────────────────
 _PALETTE = [
@@ -181,7 +205,7 @@ def _write_roster_sheet(
             name_col = unit_col + 1
 
             assigned  = sol.assignment.get(day, "—")
-            unit_cell = ws.cell(row=ri, column=unit_col, value=assigned)
+            unit_cell = ws.cell(row=ri, column=unit_col, value=_xl_safe(assigned))
             unit_cell.alignment = Alignment(horizontal="center")
             unit_cell.border    = _thin_border()
             if assigned in color_map:
@@ -255,7 +279,7 @@ def _write_summary_sheet(
         for s in sol.stats:
             vals = [s.name, s.eligible, s.total_days, s.weekday_days, s.weekend_days, s.holiday_days, s.hard_days]
             for ci, v in enumerate(vals, start=1):
-                c = ws.cell(row=row, column=ci, value=v)
+                c = ws.cell(row=row, column=ci, value=_xl_safe(v))
                 c.alignment = Alignment(horizontal="center")
                 c.border = _thin_border()
             row += 1
@@ -311,7 +335,7 @@ def _write_fairness_sheet(
                 round(hard_target, 1), s.hard_days,
             ]
             for ci, v in enumerate(vals, start=1):
-                c = ws.cell(row=row, column=ci, value=v)
+                c = ws.cell(row=row, column=ci, value=_xl_safe(v))
                 c.alignment = Alignment(horizontal="center")
                 c.border = _thin_border()
 
@@ -930,10 +954,11 @@ footer strong {{ color: var(--white); }}
 # ── HTML sub-builders ─────────────────────────────────────────────────────────
 
 def _build_legend_html(all_dirs: list[str], color_map: dict[str, str]) -> str:
+    # M-staff-02: escape user-controlled directorate names before injection.
     items = "".join(
         f'<div class="legend-item">'
         f'<div class="legend-swatch" style="background:#{color_map[dn]}"></div>'
-        f'<span>{dn}</span></div>'
+        f'<span>{_h(dn)}</span></div>'
         for dn in all_dirs
     )
     sep = '<div class="legend-sep"></div>'
@@ -960,7 +985,7 @@ def _build_calendar_table_html(
 
     # Column headers
     role_headers = "".join(
-        f'<th>{sol.role.replace("_", " ")}</th>'
+        f'<th>{_h(sol.role.replace("_", " "))}</th>'
         for sol in solutions
     )
 
@@ -1001,7 +1026,7 @@ def _build_calendar_table_html(
             color    = color_map.get(assigned, "9CA3AF")
             if assigned:
                 dir_cells += (
-                    f'<td><span class="dir-chip" style="background:#{color}">{assigned}</span></td>'
+                    f'<td><span class="dir-chip" style="background:#{color}">{_h(assigned)}</span></td>'
                 )
             else:
                 dir_cells += '<td>—</td>'
@@ -1048,7 +1073,7 @@ def _build_summary_html(
             )
             rows += (
                 f'<tr>'
-                f'<td style="color:#{color}">{s.name}</td>'
+                f'<td style="color:#{color}">{_h(s.name)}</td>'
                 f'<td>{s.eligible}</td>'
                 f'<td>{target:.1f}</td>'
                 f'<td style="min-width:160px">{bar}</td>'
@@ -1060,7 +1085,7 @@ def _build_summary_html(
             )
         cards += (
             f'<div class="table-card">'
-            f'<div class="table-card-hdr">{sol.role.replace("_", " ")} &nbsp;&mdash;&nbsp; {sol.solver_status}</div>'
+            f'<div class="table-card-hdr">{_h(sol.role.replace("_", " "))} &nbsp;&mdash;&nbsp; {_h(sol.solver_status)}</div>'
             f'<table class="data-table"><thead><tr>'
             f'<th>Directorate</th><th>Eligible</th><th>Target</th><th>Actual Days</th>'
             f'<th>Weekday</th><th>Weekend</th><th>Holiday</th><th>Hard Days</th>'
@@ -1131,7 +1156,7 @@ def _build_fairness_html(solutions: list[RosterSolution]) -> str:
             hard_cls  = delta_class(s.hard_days, t_hard)
             rows += (
                 f'<tr>'
-                f'<td style="font-weight:700">{s.name}</td>'
+                f'<td style="font-weight:700">{_h(s.name)}</td>'
                 f'<td>{s.eligible} soldiers</td>'
                 f'<td style="font-family:var(--font-mono)">{t_total:.1f}</td>'
                 f'<td><span class="pill {total_cls}">{s.total_days} days &nbsp; {delta_text(s.total_days, t_total)}</span></td>'
@@ -1145,7 +1170,7 @@ def _build_fairness_html(solutions: list[RosterSolution]) -> str:
 
         cards += f"""
 <div class="table-card">
-  <div class="table-card-hdr">{sol.role.replace("_", " ")} &nbsp;&mdash;&nbsp; Equity Report</div>
+  <div class="table-card-hdr">{_h(sol.role.replace("_", " "))} &nbsp;&mdash;&nbsp; Equity Report</div>
 
   <div class="verdict-banner {verdict_cls}">
     <span class="verdict-icon">{verdict_icon}</span>

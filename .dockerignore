@@ -1,0 +1,52 @@
+# .dockerignore — keep unnecessary files out of the build context (M-staff-03, 2026-04-25)
+.git
+.github
+.gitignore
+.gitlab-ci.yml
+.dockerignore
+
+# Python build / cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.eggs
+build/
+dist/
+.tox
+.pytest_cache
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache
+.ruff_cache
+
+# Virtualenvs
+.venv
+venv
+env
+
+# Local databases & dev state
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+staff_duty.db
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Tests + dev requirements (runtime image needs neither)
+tests/
+requirements-dev.txt
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+*.swp
