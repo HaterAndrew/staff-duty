@@ -26,7 +26,6 @@ from openpyxl.utils import get_column_letter
 from .calendar_utils import HOLIDAY, WEEKDAY, WEEKEND, classify_day
 from .solver import RosterSolution
 
-
 # ── Hardening helpers ────────────────────────────────────────────────────────
 # M-staff-01: Excel formula-injection guard. Prefixing user-controlled strings
 # that begin with =/+/-/@ or a leading control char with a single-quote prevents
